@@ -7,9 +7,11 @@ import os
 import sys
 import json
 import time
+import re
 import requests
 import subprocess
-from github import Github
+from bs4 import BeautifulSoup
+from github import Github, Auth
 
 # ===== قراءة المتغيرات البيئية =====
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
@@ -30,10 +32,11 @@ if not SERIES_NAME or not EPISODE_NUM:
     sys.exit(1)
 
 EPISODE_NUM = int(EPISODE_NUM)
-RELEASE_TAG = "compressed-episodes"   # علامة الإصدار الذي سيُرفع إليه الفيديو
+RELEASE_TAG = "compressed-episodes"
 
 # ===== الاتصال بـ GitHub =====
-g = Github(GITHUB_TOKEN)
+auth = Auth.Token(GITHUB_TOKEN)
+g = Github(auth=auth)
 repo = g.get_repo(REPO_NAME)
 
 # ===== دوال التعامل مع metadata.json =====
@@ -60,24 +63,61 @@ def save_metadata(data):
             json.dumps(data, ensure_ascii=False, indent=2)
         )
 
+# ===== محاولة استخراج الرابط المباشر من streamtape =====
+def extract_streamtape_direct(url):
+    """محاولة استخراج الرابط المباشر من صفحة streamtape"""
+    try:
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        resp = requests.get(url, headers=headers, timeout=30)
+        if resp.status_code != 200:
+            return None
+        soup = BeautifulSoup(resp.text, 'html.parser')
+        # البحث عن الرابط في JavaScript
+        scripts = soup.find_all('script')
+        for script in scripts:
+            if script.string:
+                # البحث عن الرابط بصيغة .mp4
+                match = re.search(r'(https?://[^\s"\']+\.mp4[^\s"\']*)', script.string)
+                if match:
+                    return match.group(1)
+        return None
+    except:
+        return None
+
 # ===== البحث عن سيرفر صالح =====
 def find_working_server(servers):
     """محاولة العثور على رابط مباشر للفيديو"""
     # نفضل الروابط التي تنتهي بـ .mp4 أو .m3u8
     for url in servers:
-        if any(ext in url.lower() for ext in ['.mp4', '.m3u8', 'streamtape.com/e/', 'fembed.com/v/']):
-            # إذا كان من streamtape، نحتاج إلى استخراج الرابط الحقيقي
-            if 'streamtape.com/e/' in url:
-                # محاولة الحصول على الرابط المباشر من صفحة streamtape (يمكن تحسينها)
-                try:
-                    resp = requests.get(url, timeout=10)
-                    # استخراج الرابط من JavaScript (قد يكون معقداً)
-                    # نكتفي بإرجاع الرابط كما هو ونأمل أن يعمل التحميل المباشر
+        # إذا كان من streamtape، نحاول استخراج الرابط المباشر
+        if 'streamtape.com/e/' in url:
+            print(f"🔄 محاولة استخراج رابط مباشر من streamtape: {url[:60]}...")
+            direct = extract_streamtape_direct(url)
+            if direct:
+                print(f"✅ تم استخراج رابط مباشر: {direct[:80]}...")
+                return direct
+            else:
+                print("⚠️ فشل استخراج الرابط المباشر من streamtape")
+                # نستمر في البحث عن روابط أخرى
+                continue
+        
+        # إذا كان الرابط مباشراً (ينتهي بـ .mp4 أو .m3u8)
+        if any(ext in url.lower() for ext in ['.mp4', '.m3u8']):
+            # نتحقق مما إذا كان الرابط يعمل
+            try:
+                head = requests.head(url, timeout=10)
+                if head.status_code == 200:
                     return url
-                except:
+                else:
+                    print(f"⚠️ الرابط {url[:60]}... لا يعمل (HTTP {head.status_code})")
                     continue
-            return url
-    # إذا لم نجد، نعيد أول رابط
+            except:
+                continue
+        
+        # بالنسبة للروابط الأخرى (fembed, ok.ru, إلخ) نعيدها كما هي مع أمل أنها تعمل
+        return url
+    
+    # إذا لم نجد أي رابط، نعيد أول رابط
     return servers[0] if servers else None
 
 # ===== تحميل وضغط الفيديو =====
@@ -88,8 +128,18 @@ def download_and_compress(video_url, output_path):
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         }
-        resp = requests.get(video_url, headers=headers, stream=True, timeout=120)
-        resp.raise_for_status()
+        # محاولة التحميل مع إعادة المحاولات
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                resp = requests.get(video_url, headers=headers, stream=True, timeout=120)
+                resp.raise_for_status()
+                break
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    raise
+                print(f"⚠️ محاولة {attempt+1} فشلت، إعادة المحاولة...")
+                time.sleep(2)
         
         temp_input = "temp_input.mp4"
         total_size = int(resp.headers.get('content-length', 0))
@@ -120,6 +170,8 @@ def download_and_compress(video_url, output_path):
         return True
     except Exception as e:
         print(f"❌ فشل التحميل أو الضغط: {e}")
+        if os.path.exists("temp_input.mp4"):
+            os.remove("temp_input.mp4")
         return False
 
 # ===== رفع الفيديو المضغوط إلى Releases =====
