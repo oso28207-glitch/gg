@@ -3,15 +3,15 @@ name: Daily Episode Updater
 on:
   schedule:
     - cron: '0 2 * * *'   # كل يوم الساعة 2 صباحاً
-  workflow_dispatch:       # لتشغيله يدوياً من علامة التبويب Actions
+  workflow_dispatch:       # للتشغيل اليدوي
 
 permissions:
-  contents: write
-  releases: write
+  contents: write          # تكفي لإنشاء الإصدارات ودفع التغييرات
 
 jobs:
   update:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
