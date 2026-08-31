@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-ضغط حلقة معينة عند الطلب باستخدام Selenium و yt-dlp لاستخراج الروابط المباشرة.
+ضغط حلقة معينة عند الطلب باستخدام Selenium و yt-dlp مع تجاوز الأخطاء الشائعة.
 """
 import os
 import sys
@@ -10,7 +10,10 @@ import re
 import base64
 import requests
 import subprocess
+import ssl
+import certifi
 from github import Github
+from github import Auth
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
@@ -19,6 +22,11 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 import yt_dlp
+
+# ===== إصلاح مشكلة SSL =====
+# تعيين مسار شهادات SSL الصحيح
+os.environ['SSL_CERT_FILE'] = certifi.where()
+os.environ['REQUESTS_CA_BUNDLE'] = certifi.where()
 
 # ===== قراءة المتغيرات البيئية =====
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
@@ -42,8 +50,6 @@ EPISODE_NUM = int(EPISODE_NUM)
 RELEASE_TAG = "compressed-episodes"
 
 # ===== الاتصال بـ GitHub =====
-# ملاحظة: استخدم auth=github.Auth.Token(...) للتخلص من التحذير
-from github import Auth
 auth = Auth.Token(GITHUB_TOKEN)
 g = Github(auth=auth)
 repo = g.get_repo(REPO_NAME)
@@ -72,7 +78,7 @@ def save_metadata(data):
             json.dumps(data, ensure_ascii=False, indent=2)
         )
 
-# ===== إعداد Selenium =====
+# ===== إعداد Selenium المحسّن =====
 def setup_selenium():
     chrome_options = Options()
     chrome_options.add_argument('--headless')
@@ -87,6 +93,7 @@ def setup_selenium():
     chrome_options.add_argument('--disable-extensions')
     chrome_options.add_argument('--disable-notifications')
     chrome_options.add_argument('--ignore-certificate-errors')
+    chrome_options.add_argument('--allow-insecure-localhost')
     
     try:
         service = Service(ChromeDriverManager().install())
@@ -97,7 +104,7 @@ def setup_selenium():
         print(f"❌ فشل إعداد Selenium: {e}")
         return None
 
-# ===== استخراج الرابط المباشر باستخدام Selenium =====
+# ===== استخراج الرابط المباشر باستخدام Selenium (محسّن) =====
 def extract_direct_video_with_selenium(server_url, referer):
     driver = setup_selenium()
     if not driver:
@@ -105,56 +112,99 @@ def extract_direct_video_with_selenium(server_url, referer):
     try:
         print(f"🔄 فتح السيرفر باستخدام Selenium: {server_url[:80]}...")
         driver.get(server_url)
-        # انتظر قليلاً لتحميل الصفحة
-        time.sleep(5)
-        page_source = driver.page_source
         
-        # 1. البحث عن رابط mp4 مباشر
-        match = re.search(r'(https?://[^"\']+\.mp4[^"\']*)', page_source)
-        if match:
-            return match.group(1)
+        # انتظار تحميل الصفحة بالكامل (10 ثوانٍ بدلاً من 5)
+        time.sleep(10)
         
-        # 2. البحث عن رابط m3u8
-        match = re.search(r'(https?://[^"\']+\.m3u8[^"\']*)', page_source)
-        if match:
-            return match.group(1)
-        
-        # 3. البحث عن عنصر الفيديو نفسه
+        # البحث عن أي فيديو في الصفحة
         try:
-            video = driver.find_element(By.TAG_NAME, 'video')
-            src = video.get_attribute('src')
-            if src and src.startswith('http'):
-                return src
+            videos = driver.find_elements(By.TAG_NAME, 'video')
+            for video in videos:
+                src = video.get_attribute('src')
+                if src and src.startswith('http') and ('.mp4' in src or '.m3u8' in src):
+                    print(f"✅ تم العثور على رابط فيديو مباشر: {src[:80]}...")
+                    driver.quit()
+                    return src
         except:
             pass
         
-        # 4. البحث داخل iframes
+        # البحث عن الروابط داخل النص
+        page_source = driver.page_source
+        matches = re.findall(r'(https?://[^"\']+\.(?:mp4|m3u8|webm)[^"\']*)', page_source)
+        if matches:
+            # نأخذ أول رابط صحيح
+            for url in matches:
+                if 'novideo' not in url and 'player' not in url:
+                    print(f"✅ تم استخراج رابط مباشر: {url[:80]}...")
+                    driver.quit()
+                    return url
+        
+        # البحث داخل iframes (هذا هو المفتاح!)
         iframes = driver.find_elements(By.TAG_NAME, 'iframe')
         for iframe in iframes:
             src = iframe.get_attribute('src')
-            if src and ('video' in src or 'embed' in src or 'player' in src):
-                # نحاول استخراج الرابط من الـ iframe
+            if src and ('video' in src or 'embed' in src or 'player' in src or 'ok.ru' in src or 'dood' in src):
                 try:
                     driver.switch_to.frame(iframe)
-                    time.sleep(2)
+                    time.sleep(3)
                     iframe_source = driver.page_source
-                    match = re.search(r'(https?://[^"\']+\.mp4[^"\']*)', iframe_source)
-                    if match:
-                        driver.switch_to.default_content()
-                        return match.group(1)
+                    # نبحث عن الروابط داخل الـ iframe
+                    matches = re.findall(r'(https?://[^"\']+\.(?:mp4|m3u8|webm)[^"\']*)', iframe_source)
+                    if matches:
+                        for url in matches:
+                            if 'novideo' not in url:
+                                driver.switch_to.default_content()
+                                print(f"✅ تم استخراج رابط من iframe: {url[:80]}...")
+                                driver.quit()
+                                return url
                     driver.switch_to.default_content()
                 except:
                     driver.switch_to.default_content()
                     continue
         
+        print("⚠️ لم يتم العثور على رابط مباشر عبر Selenium.")
+        driver.quit()
         return None
     except Exception as e:
         print(f"❌ خطأ في Selenium: {e}")
+        try:
+            driver.quit()
+        except:
+            pass
         return None
-    finally:
-        driver.quit()
 
-# ===== التنزيل باستخدام requests =====
+# ===== التنزيل باستخدام yt-dlp مع خيارات تجاوز Cloudflare =====
+def download_with_ytdlp(url, output_path, referer):
+    try:
+        safe_referer = re.sub(r'[^\x00-\x7F]+', '', referer) if referer else ''
+        ydl_opts = {
+            'format': 'best[height<=720]/best',
+            'outtmpl': output_path,
+            'quiet': False,
+            'retries': 5,
+            'fragment_retries': 5,
+            'socket_timeout': 60,
+            'extractor_args': {
+                'generic': {
+                    'impersonate': True,  # لتجاوز Cloudflare
+                    'no-playlist': True,
+                }
+            },
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Referer': safe_referer,
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept-Encoding': 'gzip, deflate, br',
+            }
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
+        return os.path.exists(output_path) and os.path.getsize(output_path) > 0
+    except Exception as e:
+        print(f"⚠️ فشل yt-dlp: {e}")
+        return False
+
+# ===== التنزيل باستخدام requests (مع تجاوز SSL) =====
 def download_with_requests(url, output_path, referer):
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -162,7 +212,8 @@ def download_with_requests(url, output_path, referer):
         'Accept-Language': 'ar-SA,ar;q=0.9,en;q=0.8',
     }
     try:
-        with requests.get(url, headers=headers, stream=True, timeout=120) as r:
+        # تعطيل التحقق من SSL مؤقتاً لتجنب أخطاء الشهادات
+        with requests.get(url, headers=headers, stream=True, timeout=120, verify=False) as r:
             r.raise_for_status()
             total_size = int(r.headers.get('content-length', 0))
             block_size = 8192
@@ -176,43 +227,14 @@ def download_with_requests(url, output_path, referer):
                             percent = (downloaded / total_size) * 100
                             print(f"\r⏳ جاري التحميل: {percent:.1f}%", end='')
             print()
-        return os.path.exists(output_path)
+        # إعادة تمكين التحقق من SSL بعد التحميل (اختياري)
+        return os.path.exists(output_path) and os.path.getsize(output_path) > 0
     except Exception as e:
         print(f"❌ فشل التنزيل عبر requests: {e}")
         return False
 
-# ===== التنزيل باستخدام yt-dlp =====
-def download_with_ytdlp(url, output_path, referer):
-    try:
-        # نزيل الأحرف العربية من الـ referer إن وجدت
-        safe_referer = re.sub(r'[^\x00-\x7F]+', '', referer) if referer else ''
-        ydl_opts = {
-            'format': 'best[height<=720]/best',
-            'outtmpl': output_path,
-            'quiet': False,
-            'retries': 3,
-            'fragment_retries': 3,
-            'socket_timeout': 30,
-            'extractor_args': {'generic': 'impersonate'},
-            'encoding': 'utf-8',
-            'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Referer': safe_referer,
-                'Accept-Language': 'en-US,en;q=0.9',
-            }
-        }
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([url])
-        return os.path.exists(output_path)
-    except Exception as e:
-        print(f"⚠️ فشل yt-dlp: {e}")
-        return False
-
-# ===== دالة التحميل والضغط الرئيسية =====
+# ===== دالة التحميل والضغط الرئيسية (محسّنة) =====
 def download_and_compress(episode_data, output_path):
-    """
-    تحاول تحميل الفيديو من السيرفرات باستخدام عدة استراتيجيات.
-    """
     servers = episode_data.get("servers", [])
     page_url = episode_data.get("url", "")
     
@@ -227,30 +249,35 @@ def download_and_compress(episode_data, output_path):
     for idx, server_url in enumerate(servers, 1):
         print(f"\n🔄 محاولة السيرفر {idx}: {server_url[:80]}...")
         
-        # الاستراتيجية 1: استخراج رابط مباشر باستخدام Selenium
+        # === المحاولة 1: Selenium + requests ===
         direct_url = extract_direct_video_with_selenium(server_url, page_url)
-        if direct_url:
+        if direct_url and 'novideo' not in direct_url:
             print(f"✅ تم استخراج رابط مباشر: {direct_url[:80]}...")
             if download_with_requests(direct_url, temp_file, page_url):
-                print("✅ تم التحميل بنجاح")
+                print("✅ تم التحميل بنجاح (requests)")
                 break
             else:
-                print("⚠️ فشل التنزيل عبر requests، نحاول yt-dlp...")
+                print("⚠️ فشل التنزيل عبر requests، نحاول yt-dlp على نفس الرابط...")
                 if download_with_ytdlp(direct_url, temp_file, page_url):
-                    print("✅ تم التحميل بنجاح")
+                    print("✅ تم التحميل بنجاح (yt-dlp)")
                     break
         
-        # الاستراتيجية 2: استخدام yt-dlp مباشرة على رابط السيرفر
+        # === المحاولة 2: Selenium + yt-dlp (على الرابط المستخرج) ===
+        if direct_url and 'novideo' not in direct_url:
+            if download_with_ytdlp(direct_url, temp_file, page_url):
+                print("✅ تم التحميل بنجاح (yt-dlp)")
+                break
+        
+        # === المحاولة 3: yt-dlp مباشرة على رابط السيرفر ===
         print("🔄 محاولة التنزيل عبر yt-dlp على رابط السيرفر...")
         if download_with_ytdlp(server_url, temp_file, page_url):
-            print("✅ تم التحميل بنجاح")
+            print("✅ تم التحميل بنجاح (yt-dlp مباشرة)")
             break
     else:
-        # إذا انتهت الحلقة دون break (أي فشل جميع السيرفرات)
         print("❌ فشل التحميل من جميع السيرفرات")
         return False
 
-    # التحقق من وجود الملف المحمل
+    # التحقق من الملف المحمل
     if not os.path.exists(temp_file) or os.path.getsize(temp_file) == 0:
         print("❌ الملف المحمل غير صالح")
         return False
