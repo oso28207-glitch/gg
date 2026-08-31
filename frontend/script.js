@@ -1,6 +1,7 @@
 // ===== الإعدادات =====
+// تم تعديل الرابط ليتناسب مع مستودعك
 const METADATA_URL = 'https://raw.githubusercontent.com/oso28207-glitch/gg/main/data/metadata.json';
-let currentSeries = null; // اسم المسلسل الحالي (في صفحة الحلقات)
+let currentSeries = null;
 
 // ===== قراءة المعامل من الرابط (لصفحة الحلقات) =====
 function getQueryParam(param) {
@@ -22,7 +23,9 @@ async function fetchData() {
 async function renderHome() {
     const app = document.getElementById('app');
     const data = await fetchData();
-    const seriesNames = Object.keys(data.series).filter(name => data.series[name].episodes?.length > 0);
+    const seriesNames = Object.keys(data.series).filter(name => 
+        data.series[name].episodes?.length > 0
+    );
     
     if (seriesNames.length === 0) {
         app.innerHTML = '<div class="loading">📭 لا توجد مسلسلات حالياً.</div>';
@@ -93,6 +96,7 @@ async function renderSeries() {
 // ===== معالجة الضغط والعرض =====
 async function handleEpisodeClick(btn) {
     if (btn.classList.contains('loading')) return;
+    
     const servers = JSON.parse(btn.dataset.servers);
     if (!servers || servers.length === 0) {
         alert('لا توجد سيرفرات لهذه الحلقة. انتظر التحديث التالي.');
