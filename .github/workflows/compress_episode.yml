@@ -14,6 +14,7 @@ on:
 
 permissions:
   contents: write
+  releases: write
 
 jobs:
   compress:
@@ -31,7 +32,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
 
       - name: Install dependencies
-        run: pip install requests PyGithub beautifulsoup4
+        run: pip install -r requirements.txt
 
       - name: Run compressor
         env:
