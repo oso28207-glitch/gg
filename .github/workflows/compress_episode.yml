@@ -13,7 +13,7 @@ on:
         type: number
 
 permissions:
-  contents: write          # ✅ هذه الصلاحية تكفي لإنشاء الإصدارات ودفع التغييرات
+  contents: write
 
 jobs:
   compress:
@@ -31,7 +31,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
 
       - name: Install dependencies
-        run: pip install requests PyGithub
+        run: pip install requests PyGithub beautifulsoup4
 
       - name: Run compressor
         env:
