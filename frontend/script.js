@@ -1,6 +1,180 @@
 // ===== الإعدادات =====
 const METADATA_URL = 'https://raw.githubusercontent.com/oso28207-glitch/gg/main/data/metadata.json';
-let currentSeries = null;
+// رابط API لتشغيل Action (استبدل اسم المستخدم والمستودع)
+const ACTION_API_URL = 'https://api.github.com/repos/oso28207-glitch/gg/actions/workflows/compress_episode.yml/dispatches';
+// التوكن سيتم وضعه من قبل المستخدم في متغير بيئي أو يُطلب منه
+// سنستخدم طريقة بسيطة: نطلب من المستخدم إدخال التوكن عند الحاجة
+let GITHUB_TOKEN = '';
+
+// ===== طلب التوكن من المستخدم =====
+function promptForToken() {
+    return prompt('أدخل GitHub Personal Access Token لتشغيل الضغط (لن يتم حفظه):');
+}
+
+// ===== تشغيل Action عن بعد =====
+async function triggerCompression(seriesName, episodeNum) {
+    if (!GITHUB_TOKEN) {
+        GITHUB_TOKEN = promptForToken();
+        if (!GITHUB_TOKEN) {
+            alert('لا يمكن المتابعة بدون توكن.');
+            return false;
+        }
+    }
+    
+    try {
+        const response = await fetch(ACTION_API_URL, {
+            method: 'POST',
+            headers: {
+                'Authorization': `token ${GITHUB_TOKEN}`,
+                'Accept': 'application/vnd.github.v3+json',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                ref: 'main',
+                inputs: {
+                    series_name: seriesName,
+                    episode_number: episodeNum.toString()
+                }
+            })
+        });
+        
+        if (response.status === 204) {
+            return true;
+        } else {
+            const error = await response.text();
+            console.error('فشل تشغيل Action:', error);
+            alert('فشل تشغيل الضغط. تأكد من التوكن وصلاحياته.');
+            return false;
+        }
+    } catch (err) {
+        console.error(err);
+        alert('حدث خطأ أثناء الاتصال بـ GitHub.');
+        return false;
+    }
+}
+
+// ===== معالجة الضغط عند الطلب =====
+async function handleEpisodeClick(btn) {
+    if (btn.classList.contains('loading')) return;
+    
+    const episodeUrl = btn.dataset.episodeUrl;
+    const seriesName = btn.dataset.seriesName;
+    const episodeNum = parseInt(btn.dataset.episodeNum);
+    const servers = JSON.parse(btn.dataset.servers);
+    const compressedUrl = btn.dataset.compressedUrl || '';
+    
+    // إذا كان الفيديو مضغوطاً بالفعل
+    if (compressedUrl) {
+        playCompressedVideo(compressedUrl, `${seriesName} - حلقة ${episodeNum}`);
+        return;
+    }
+    
+    // إذا كانت السيرفرات فارغة
+    if (!servers || servers.length === 0) {
+        alert('لا توجد سيرفرات لهذه الحلقة. انتظر التحديث التالي.');
+        return;
+    }
+    
+    // طلب الضغط
+    btn.textContent = '⏳ جاري طلب الضغط...';
+    btn.classList.add('loading');
+    
+    const success = await triggerCompression(seriesName, episodeNum);
+    if (success) {
+        btn.textContent = '⏳ قيد المعالجة...';
+        alert(`✅ تم بدء ضغط الحلقة ${episodeNum}.\nانتظر بضع دقائق ثم قم بتحديث الصفحة.`);
+        // يمكننا تحديث الرابط بعد دقيقة مثلاً
+        setTimeout(() => {
+            checkForCompressed(btn, seriesName, episodeNum);
+        }, 60000); // بعد دقيقة
+    } else {
+        btn.textContent = '❌ فشل الطلب';
+        btn.classList.remove('loading');
+    }
+}
+
+// ===== التحقق من وجود الفيديو المضغوط =====
+async function checkForCompressed(btn, seriesName, episodeNum) {
+    try {
+        const data = await fetchData();
+        const series = data.series[seriesName];
+        if (!series) return;
+        const ep = series.episodes.find(e => e.episode === episodeNum);
+        if (ep && ep.compressed_url) {
+            btn.dataset.compressedUrl = ep.compressed_url;
+            btn.textContent = '▶️ مشاهدة';
+            btn.classList.remove('loading');
+            btn.classList.add('done');
+            // تحديث الزر ليستخدم دالة التشغيل المباشر
+            btn.onclick = () => {
+                playCompressedVideo(ep.compressed_url, `${seriesName} - حلقة ${episodeNum}`);
+            };
+        } else {
+            // لم يتم الضغط بعد، ننتظر مرة أخرى
+            setTimeout(() => {
+                checkForCompressed(btn, seriesName, episodeNum);
+            }, 30000);
+        }
+    } catch (err) {
+        console.warn('فشل التحقق:', err);
+    }
+}
+
+// ===== تشغيل الفيديو المضغوط =====
+function playCompressedVideo(url, title) {
+    const container = document.getElementById('videoContainer');
+    const player = document.getElementById('player');
+    const titleEl = document.getElementById('videoTitle');
+    container.classList.add('active');
+    titleEl.textContent = title;
+    player.src = url;
+    player.load();
+    player.play();
+}
+
+// ===== تحديث دالة renderSeries لتضمين compressed_url =====
+async function renderSeries() {
+    const seriesName = getQueryParam('name');
+    if (!seriesName) {
+        document.getElementById('app').innerHTML = '<div class="loading">⚠️ لم يتم تحديد مسلسل.</div>';
+        return;
+    }
+
+    const data = await fetchData();
+    const series = data.series[seriesName];
+    if (!series || !series.episodes || series.episodes.length === 0) {
+        document.getElementById('app').innerHTML = '<div class="loading">📭 لا توجد حلقات لهذا المسلسل.</div>';
+        return;
+    }
+
+    document.getElementById('seriesTitle').textContent = seriesName;
+    const app = document.getElementById('app');
+    app.innerHTML = '';
+
+    const episodes = [...series.episodes].sort((a, b) => b.episode - a.episode);
+    const grid = document.createElement('div');
+    grid.className = 'episode-grid';
+
+    for (const ep of episodes) {
+        const btn = document.createElement('button');
+        btn.className = 'episode-btn';
+        // إذا كان هناك رابط مضغوط، نعرض زر "مشاهدة"
+        if (ep.compressed_url) {
+            btn.textContent = '▶️ مشاهدة';
+            btn.dataset.compressedUrl = ep.compressed_url;
+            btn.onclick = () => playCompressedVideo(ep.compressed_url, `${seriesName} - حلقة ${ep.episode}`);
+        } else {
+            btn.textContent = `📥 حلقة ${ep.episode}`;
+            btn.dataset.episodeUrl = ep.url;
+            btn.dataset.seriesName = seriesName;
+            btn.dataset.episodeNum = ep.episode;
+            btn.dataset.servers = JSON.stringify(ep.servers || []);
+            btn.onclick = () => handleEpisodeClick(btn);
+        }
+        grid.appendChild(btn);
+    }
+    app.appendChild(grid);
+}
 
 // ===== قراءة المعامل من الرابط =====
 function getQueryParam(param) {
