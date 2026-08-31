@@ -4,4 +4,5 @@ selenium>=4.15.0
 webdriver-manager>=4.0.0
 json5>=0.9.0
 PyGithub>=2.0.0
-yt-dlp>=2024.4.9
+yt-dlp>=2024.12.23
+certifi>=2024.12.14
