@@ -142,9 +142,12 @@ def get_series_from_requests(url):
     
     return unique
 
-# ===== جلب حلقات مسلسل معين من صفحة التصنيف =====
+# ===== جلب حلقات مسلسل معين (مع الروابط الكاملة) =====
 def get_episodes_for_series(series_url):
-    """استخراج أرقام الحلقات من صفحة المسلسل"""
+    """
+    استخراج أرقام وروابط الحلقات من صفحة المسلسل
+    يعيد قائمة من الكائنات: {'episode': رقم, 'url': الرابط_الكامل}
+    """
     print(f"  📂 جلب حلقات من: {series_url[:60]}...")
     
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
@@ -158,57 +161,43 @@ def get_episodes_for_series(series_url):
     soup = BeautifulSoup(resp.text, 'html.parser')
     episodes = []
     
-    # البحث عن النص المباشر "حلقة رقم X"
-    text = soup.get_text()
-    pattern = r'(?:حلقة\s*رقم\s*|الحلقة\s*)(\d+)'
-    matches = re.findall(pattern, text)
-    for match in matches:
-        ep_num = int(match)
-        if ep_num not in episodes:
-            episodes.append(ep_num)
-    
-    # البحث عن روابط تنتهي برقم (صفحات الحلقات)
+    # البحث عن جميع الروابط التي تشير إلى حلقات (تحتوي على -الحلقة- أو -مد-)
     for link in soup.find_all('a', href=True):
         href = link['href']
-        if '-مد-' in href or '-حلقة-' in href:
+        # نبحث عن روابط الحلقات: يجب أن تحتوي على -الحلقة- أو -مد- وتنتهي برقم
+        if ('-الحلقة-' in href or '-مد-' in href) and href.endswith('/'):
+            # استخراج رقم الحلقة من الرابط
             match = re.search(r'-(\d+)/?$', href)
             if match:
                 ep_num = int(match.group(1))
-                if ep_num not in episodes:
-                    episodes.append(ep_num)
+                # بناء الرابط الكامل (إذا كان نسبياً)
+                if href.startswith('/'):
+                    full_url = 'https://lodynet.watch' + href
+                else:
+                    full_url = href
+                # نضيف فقط إذا لم يكن مكرراً
+                if not any(e['episode'] == ep_num for e in episodes):
+                    episodes.append({
+                        'episode': ep_num,
+                        'url': full_url
+                    })
     
-    episodes.sort()
+    # ترتيب حسب رقم الحلقة
+    episodes.sort(key=lambda x: x['episode'])
     print(f"    ✅ تم العثور على {len(episodes)} حلقة")
     return episodes
 
-# ===== بناء هيكل الحلقات مع روابط الصفحات (تم التعديل) =====
-def build_episode_data(series_name, series_url, episode_numbers):
+# ===== بناء هيكل الحلقات (باستخدام الروابط المستخرجة مباشرة) =====
+def build_episode_data(series_name, series_url, episode_objects):
     """
-    بناء بيانات الحلقات مع روابط صفحاتها
-    التنسيق الصحيح للرابط: /اسم-المسلسل-الحلقة-رقم/
+    بناء بيانات الحلقات باستخدام الروابط المستخرجة من الموقع
+    episode_objects: قائمة من {'episode': رقم, 'url': الرابط}
     """
     episodes = []
-    # استخراج الاسم الأساسي من رابط المسلسل
-    series_slug = series_url.rstrip('/').split('/')[-1]
-    
-    # إزالة بادئة "category-" إن وجدت
-    if series_slug.startswith('category-'):
-        series_slug = series_slug[9:]
-    
-    # إزالة لاحقة "-مدب" إن وجدت
-    if series_slug.endswith('-مدب'):
-        series_slug = series_slug[:-4]
-    
-    # إزالة بادئة "مسلسل-" إن وجدت (لتجنب التكرار)
-    if series_slug.startswith('مسلسل-'):
-        series_slug = series_slug[7:]
-    
-    for ep_num in episode_numbers:
-        # الرابط الصحيح: https://lodynet.watch/اسم-المسلسل-الحلقة-رقم/
-        episode_url = f"https://lodynet.watch/{series_slug}-الحلقة-{ep_num}/"
+    for ep in episode_objects:
         episodes.append({
-            'episode': ep_num,
-            'url': episode_url,
+            'episode': ep['episode'],
+            'url': ep['url'],
             'date_added': datetime.now().isoformat()
         })
     return episodes
@@ -243,9 +232,11 @@ def main():
             existing_episodes = set()
             all_data["series"][name] = {"episodes": []}
         
-        episode_numbers = get_episodes_for_series(url)
+        # جلب الحلقات مع الروابط الكاملة
+        episode_objects = get_episodes_for_series(url)
         
-        new_episodes = [ep for ep in episode_numbers if ep not in existing_episodes]
+        # تصفية الحلقات الجديدة (غير الموجودة في البيانات الحالية)
+        new_episodes = [ep for ep in episode_objects if ep['episode'] not in existing_episodes]
         
         if new_episodes:
             print(f"  🆕 إضافة {len(new_episodes)} حلقة جديدة لـ {name}")
@@ -255,7 +246,7 @@ def main():
         
         all_data["series"][name]["url"] = url
         
-        time.sleep(2)
+        time.sleep(2)  # تأخير لتجنب الحظر
     
     all_data["last_update"] = datetime.now().isoformat()
     
