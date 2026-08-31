@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 """
 جلب بيانات المسلسلات التركية المدبلجة مع روابط السيرفرات لكل حلقة
-باستخدام Selenium لجلب المسلسلات، و requests لجلب سيرفرات الحلقات
 """
 import os
-import sys
 import json
 import re
 import time
@@ -27,7 +25,7 @@ if not os.path.exists(CONFIG_FILE):
     CONFIG = {
         "series_page": "https://lodynet.watch/dubbed-turkish-series-g/",
         "max_series": 50,
-        "max_new_episodes_per_series": 5  # حد أقصى للحلقات الجديدة التي نعالج سيرفراتها لكل مسلسل
+        "max_new_episodes_per_series": 5
     }
 else:
     with open(CONFIG_FILE, "r", encoding="utf-8") as f:
@@ -45,7 +43,7 @@ def setup_driver():
     chrome_options.add_argument('--disable-dev-shm-usage')
     chrome_options.add_argument('--disable-gpu')
     chrome_options.add_argument('--window-size=1920,1080')
-    chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
+    chrome_options.add_argument('--user-agent=Mozilla/5.0')
     try:
         service = Service(ChromeDriverManager().install())
         driver = webdriver.Chrome(service=service, options=chrome_options)
@@ -98,7 +96,7 @@ def get_all_series(url):
     print(f"✅ تم العثور على {len(unique)} مسلسل")
     return unique[:MAX_SERIES]
 
-# ===== جلب أرقام الحلقات من صفحة المسلسل =====
+# ===== جلب أرقام الحلقات =====
 def get_episode_numbers(series_url):
     print(f"  📂 جلب حلقات من: {series_url[:60]}...")
     headers = {'User-Agent': 'Mozilla/5.0'}
@@ -110,7 +108,6 @@ def get_episode_numbers(series_url):
         return []
     soup = BeautifulSoup(resp.text, 'html.parser')
     episodes = []
-    # البحث عن النص "حلقة رقم X"
     text = soup.get_text()
     pattern = r'(?:حلقة\s*رقم\s*|الحلقة\s*)(\d+)'
     matches = re.findall(pattern, text)
@@ -118,7 +115,6 @@ def get_episode_numbers(series_url):
         ep_num = int(match)
         if ep_num not in episodes:
             episodes.append(ep_num)
-    # البحث عن روابط تحتوي على "-الحلقة-"
     for link in soup.find_all('a', href=True):
         href = link['href']
         if '-الحلقة-' in href:
@@ -131,7 +127,7 @@ def get_episode_numbers(series_url):
     print(f"    ✅ تم العثور على {len(episodes)} حلقة")
     return episodes
 
-# ===== استخراج PostData من صفحة الحلقة =====
+# ===== استخراج PostData =====
 def extract_post_data(html):
     start_match = re.search(r'PostData\s*=\s*\{', html)
     if not start_match:
@@ -169,7 +165,6 @@ def extract_post_data(html):
         import json5
         return json5.loads(post_data_str)
     except:
-        # محاولة بديلة باستخدام json العادي (قد يفشل بسبب التعليقات)
         try:
             return json.loads(post_data_str)
         except:
@@ -197,7 +192,6 @@ def extract_server_urls(post_data):
                 urls.append(decoded)
     return urls
 
-# ===== جلب سيرفرات حلقة معينة =====
 def get_episode_servers(episode_url):
     print(f"    🔗 جلب سيرفرات: {episode_url[:60]}...")
     headers = {'User-Agent': 'Mozilla/5.0'}
@@ -207,13 +201,11 @@ def get_episode_servers(episode_url):
     except Exception as e:
         print(f"    ❌ فشل تحميل صفحة الحلقة: {e}")
         return []
-    html = resp.text
-    post_data = extract_post_data(html)
+    post_data = extract_post_data(resp.text)
     if not post_data:
         return []
     return extract_server_urls(post_data)
 
-# ===== بناء بيانات الحلقة (مع السيرفرات) =====
 def build_episode_data(series_name, series_url, episode_numbers, max_new=5):
     episodes = []
     series_slug = series_url.rstrip('/').split('/')[-1]
@@ -230,17 +222,16 @@ def build_episode_data(series_name, series_url, episode_numbers, max_new=5):
         servers = []
         if count < max_new:
             servers = get_episode_servers(episode_url)
-            time.sleep(1)  # تجنب الحظر
+            time.sleep(1)
             count += 1
         episodes.append({
             'episode': ep_num,
             'url': episode_url,
-            'servers': servers,  # قائمة روابط السيرفرات
+            'servers': servers,
             'date_added': datetime.now().isoformat()
         })
     return episodes
 
-# ===== الدالة الرئيسية =====
 def main():
     print("🚀 بدء جلب الميتاداتا مع سيرفرات الحلقات...")
     os.makedirs("data", exist_ok=True)
@@ -272,23 +263,18 @@ def main():
         all_data["series"][name]["cover"] = cover
         episode_numbers = get_episode_numbers(url)
 
-        # الحلقات الجديدة (التي لم تكن موجودة)
         new_eps = [ep for ep in episode_numbers if ep not in existing_episodes]
-
         if new_eps:
-            # نأخذ أول max_new حلقة فقط (لتجنب كثرة الطلبات)
             new_eps_limited = new_eps[:MAX_NEW_EPISODES]
             print(f"  🆕 إضافة {len(new_eps_limited)} حلقة جديدة (من أصل {len(new_eps)}) لـ {name}")
             new_ep_data = build_episode_data(name, url, new_eps_limited, max_new=len(new_eps_limited))
             all_data["series"][name]["episodes"].extend(new_ep_data)
             updated_count += len(new_ep_data)
 
-        # تحديث المسلسل نفسه
         all_data["series"][name]["url"] = url
         time.sleep(2)
 
     all_data["last_update"] = datetime.now().isoformat()
-
     with open(metadata_path, "w", encoding="utf-8") as f:
         json.dump(all_data, f, ensure_ascii=False, indent=2)
 
