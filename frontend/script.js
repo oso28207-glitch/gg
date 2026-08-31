@@ -2,7 +2,7 @@
 // إعدادات التطبيق
 // =============================================
 // ⚠️ تحذير: تخزين التوكن في الكود المصدري غير آمن. استخدم هذا فقط للتجربة.
-const GITHUB_TOKEN = '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';
+const GITHUB_TOKEN = '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';
 const METADATA_URL = 'https://raw.githubusercontent.com/oso28207-glitch/gg/refs/heads/main/data/metadata.json'; // أو 'data/metadata.json' حسب موقع الملف
 const ACTION_API_URL = 'https://api.github.com/repos/oso28207-glitch/gg/actions/workflows/compress_episode.yml/dispatches';
 
