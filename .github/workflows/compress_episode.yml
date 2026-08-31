@@ -13,12 +13,12 @@ on:
         type: number
 
 permissions:
-  contents: write
-  releases: write
+  contents: write   # ✅ الصلاحية الصحيحة
 
 jobs:
   compress:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
