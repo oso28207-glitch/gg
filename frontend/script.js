@@ -1,4 +1,4 @@
-const METADATA_URL = 'https://raw.githubusercontent.com/YourUsername/YourRepoName/main/data/metadata.json';
+const METADATA_URL = 'https://raw.githubusercontent.com/oso28207-glitch/gg/main/data/metadata.json';
 
 async function fetchData() {
     try {
