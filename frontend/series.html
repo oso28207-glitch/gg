@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>الحلقات - مسلسلات تركية مدبلجة</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1>🎬 <span id="seriesTitle">اسم المسلسل</span></h1>
+        <a href="index.html" style="color:#e50914; text-decoration:none; font-size:18px;">⬅ العودة للرئيسية</a>
+    </header>
+    <main id="app">
+        <div class="loading">⏳ جاري تحميل الحلقات...</div>
+    </main>
+    <div id="videoContainer" class="video-container">
+        <h3 id="videoTitle"></h3>
+        <div id="progressArea">
+            <progress id="compressProgress" value="0" max="100"></progress>
+            <span id="progressText">0%</span>
+        </div>
+        <video id="player" controls></video>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.6/dist/ffmpeg.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
