@@ -1,5 +1,5 @@
 // ===== الإعدادات =====
-const DEFAULT_TOKEN = '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';
+const DEFAULT_TOKEN = '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';
 let GITHUB_TOKEN = DEFAULT_TOKEN;
 
 // ===== دالة لتحديث التوكن يدوياً =====
