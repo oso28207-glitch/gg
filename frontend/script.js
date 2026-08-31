@@ -1,4 +1,12 @@
-const METADATA_URL = 'https://raw.githubusercontent.com/oso28207-glitch/gg/main/data/metadata.json';
+// ===== الإعدادات =====
+const METADATA_URL = 'https://raw.githubusercontent.com/YourUsername/YourRepoName/main/data/metadata.json';
+let currentSeries = null; // اسم المسلسل الحالي (في صفحة الحلقات)
+
+// ===== قراءة المعامل من الرابط (لصفحة الحلقات) =====
+function getQueryParam(param) {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get(param);
+}
 
 // ===== جلب البيانات =====
 async function fetchData() {
@@ -10,140 +18,158 @@ async function fetchData() {
     }
 }
 
-// ===== عرض المسلسلات والحلقات =====
-function renderSeries(data) {
+// ===== عرض المسلسلات في الصفحة الرئيسية =====
+async function renderHome() {
     const app = document.getElementById('app');
-    app.innerHTML = '';
-    const seriesNames = Object.keys(data.series);
-
+    const data = await fetchData();
+    const seriesNames = Object.keys(data.series).filter(name => data.series[name].episodes?.length > 0);
+    
     if (seriesNames.length === 0) {
-        app.innerHTML = '<div class="loading">📭 لا توجد بيانات حالياً. انتظر التحديث التلقائي.</div>';
+        app.innerHTML = '<div class="loading">📭 لا توجد مسلسلات حالياً.</div>';
         return;
     }
 
-    // ترتيب المسلسلات حسب تاريخ آخر تحديث (الأحدث أولاً)
-    // نعرض المسلسلات التي لها حلقات فقط
-    const sorted = seriesNames
-        .filter(name => data.series[name].episodes?.length > 0)
-        .sort((a, b) => {
-            const epsA = data.series[a].episodes;
-            const epsB = data.series[b].episodes;
-            const lastA = epsA[epsA.length - 1]?.date_added || '';
-            const lastB = epsB[epsB.length - 1]?.date_added || '';
-            return lastB.localeCompare(lastA);
-        });
-
-    for (const name of sorted) {
-        const episodes = data.series[name].episodes;
-        // ترتيب الحلقات تنازلياً (الأحدث أولاً)
-        const sortedEps = [...episodes].sort((a, b) => b.episode - a.episode);
-
+    app.innerHTML = '';
+    for (const name of seriesNames) {
+        const series = data.series[name];
+        const cover = series.cover || '';
+        const epCount = series.episodes.length;
+        
         const card = document.createElement('div');
         card.className = 'series-card';
-
-        const title = document.createElement('div');
-        title.className = 'series-title';
-        title.textContent = name;
-        card.appendChild(title);
-
-        const grid = document.createElement('div');
-        grid.className = 'episode-grid';
-
-        for (const ep of sortedEps) {
-            const btn = document.createElement('button');
-            btn.className = 'episode-btn';
-            btn.textContent = `🎬 حلقة ${ep.episode}`;
-            btn.dataset.episodeUrl = ep.url;
-            btn.dataset.seriesName = name;
-            btn.dataset.episodeNum = ep.episode;
-            btn.onclick = () => handleEpisodeClick(btn);
-            grid.appendChild(btn);
-        }
-        card.appendChild(grid);
+        card.onclick = () => {
+            window.location.href = `series.html?name=${encodeURIComponent(name)}`;
+        };
+        
+        card.innerHTML = `
+            ${cover ? `<img src="${cover}" alt="${name}" loading="lazy">` : ''}
+            <div class="info">
+                <h3>${name}</h3>
+                <p>${epCount} حلقة</p>
+            </div>
+        `;
         app.appendChild(card);
     }
 }
 
-// ===== معالجة الضغط عند الطلب =====
+// ===== عرض حلقات مسلسل معين (صفحة الحلقات) =====
+async function renderSeries() {
+    const seriesName = getQueryParam('name');
+    if (!seriesName) {
+        document.getElementById('app').innerHTML = '<div class="loading">⚠️ لم يتم تحديد مسلسل.</div>';
+        return;
+    }
+
+    const data = await fetchData();
+    const series = data.series[seriesName];
+    if (!series || !series.episodes || series.episodes.length === 0) {
+        document.getElementById('app').innerHTML = '<div class="loading">📭 لا توجد حلقات لهذا المسلسل.</div>';
+        return;
+    }
+
+    document.getElementById('seriesTitle').textContent = seriesName;
+    const app = document.getElementById('app');
+    app.innerHTML = '';
+
+    // ترتيب الحلقات تنازلياً (الأحدث أولاً)
+    const episodes = [...series.episodes].sort((a, b) => b.episode - a.episode);
+    const grid = document.createElement('div');
+    grid.className = 'episode-grid';
+
+    for (const ep of episodes) {
+        const btn = document.createElement('button');
+        btn.className = 'episode-btn';
+        btn.textContent = `🎬 حلقة ${ep.episode}`;
+        btn.dataset.episodeUrl = ep.url;
+        btn.dataset.seriesName = seriesName;
+        btn.dataset.episodeNum = ep.episode;
+        btn.dataset.servers = JSON.stringify(ep.servers || []);
+        btn.onclick = () => handleEpisodeClick(btn);
+        grid.appendChild(btn);
+    }
+    app.appendChild(grid);
+}
+
+// ===== معالجة الضغط والعرض =====
 async function handleEpisodeClick(btn) {
-    const episodeUrl = btn.dataset.episodeUrl;
-    const seriesName = btn.dataset.seriesName;
-    const episodeNum = btn.dataset.episodeNum;
-
-    // منع الضغط المتكرر
     if (btn.classList.contains('loading')) return;
+    const servers = JSON.parse(btn.dataset.servers);
+    if (!servers || servers.length === 0) {
+        alert('لا توجد سيرفرات لهذه الحلقة. انتظر التحديث التالي.');
+        return;
+    }
 
-    // تغيير حالة الزر
+    // نأخذ أول سيرفر (يمكن تحسينها لاختيار الأسرع)
+    const videoUrl = servers[0];
     btn.textContent = '⏳ جاري التحميل...';
     btn.classList.add('loading');
 
     try {
-        // 1. طلب تحميل وضغط الفيديو من السيرفر (GitHub Actions أو خدمة خارجية)
-        //    سنستخدم GitHub Actions كـ "سيرفر" عبر تشغيل Workflow يدوياً أو عبر webhook
-        //    لكن GitHub Actions لا يمكن تشغيلها مباشرة من المتصفح.
-        //    لذا سنستخدم حلاً بديلاً: نطلب من المستخدم الانتظار، ونجهز الفيديو مسبقاً.
-        
-        // === الحل المؤقت: نعرض رسالة ونفتح صفحة الحلقة الأصلية ===
-        // (يمكن استبدال هذا لاحقاً باستدعاء API حقيقي)
-        btn.textContent = '🔄 جاري الضغط... قد يستغرق دقائق';
-        
-        // محاكاة طلب الضغط (في الواقع ستستدعي API هنا)
-        // نفتح صفحة الحلقة في إطار خفي لاستخراج الرابط المباشر
-        const videoUrl = await fetchAndCompress(episodeUrl, seriesName, episodeNum);
-        
-        if (videoUrl) {
-            btn.textContent = '▶️ مشاهدة';
-            btn.classList.remove('loading');
-            btn.classList.add('done');
-            playVideo(videoUrl, `${seriesName} - حلقة ${episodeNum}`);
-        } else {
-            btn.textContent = '❌ فشل';
-            btn.classList.remove('loading');
-        }
+        // 1. تحميل الفيديو كـ ArrayBuffer
+        const response = await fetch(videoUrl);
+        if (!response.ok) throw new Error('فشل تحميل الفيديو');
+        const fileBuffer = await response.arrayBuffer();
+        const inputFileName = `input_${Date.now()}.mp4`;
+        const outputFileName = `output_${Date.now()}.mp4`;
+
+        // 2. ضغط الفيديو باستخدام FFmpeg.wasm
+        btn.textContent = '🔄 جاري الضغط إلى 240p...';
+        const { createFFmpeg, fetchFile } = FFmpeg;
+        const ffmpeg = createFFmpeg({ log: true });
+        await ffmpeg.load();
+
+        // كتابة الملف في الذاكرة الافتراضية
+        ffmpeg.FS('writeFile', inputFileName, await fetchFile(new Blob([fileBuffer])));
+
+        // تشغيل أمر الضغط
+        ffmpeg.setProgress(({ ratio }) => {
+            const percent = Math.round(ratio * 100);
+            document.getElementById('compressProgress').value = percent;
+            document.getElementById('progressText').textContent = `${percent}%`;
+        });
+
+        await ffmpeg.run(
+            '-i', inputFileName,
+            '-vf', 'scale=-2:240',
+            '-c:v', 'libx264', '-crf', '30', '-preset', 'veryfast',
+            '-c:a', 'aac', '-b:a', '48k',
+            '-y', outputFileName
+        );
+
+        // قراءة الملف المضغوط
+        const data = ffmpeg.FS('readFile', outputFileName);
+        const blob = new Blob([data.buffer], { type: 'video/mp4' });
+        const url = URL.createObjectURL(blob);
+
+        // 3. عرض الفيديو
+        const container = document.getElementById('videoContainer');
+        const player = document.getElementById('player');
+        const title = document.getElementById('videoTitle');
+        container.classList.add('active');
+        title.textContent = `${btn.dataset.seriesName} - حلقة ${btn.dataset.episodeNum}`;
+        player.src = url;
+        player.load();
+        player.play();
+
+        // تنظيف الملفات من الذاكرة الافتراضية
+        ffmpeg.FS('unlink', inputFileName);
+        ffmpeg.FS('unlink', outputFileName);
+
+        btn.textContent = '▶️ مشاهدة';
+        btn.classList.remove('loading');
+        btn.classList.add('done');
+
     } catch (err) {
         console.error(err);
-        btn.textContent = '❌ خطأ';
+        btn.textContent = '❌ فشل';
         btn.classList.remove('loading');
+        alert('حدث خطأ أثناء التحميل أو الضغط. تأكد من الرابط وحاول مرة أخرى.');
     }
 }
 
-// ===== دالة تجلب الفيديو وتضغطه (محاكاة) =====
-async function fetchAndCompress(episodeUrl, seriesName, episodeNum) {
-    // في التطبيق الحقيقي، هنا ستستدعي خدمة خارجية (مثل AWS Lambda أو Cloudflare Worker)
-    // تقوم بتحميل الفيديو من lodynet وضغطه وإرجاع رابط الفيديو المضغوط.
-    
-    // الحل البديل: استخدام proxy لتحميل الفيديو مباشرة في المتصفح باستخدام ffmpeg.wasm
-    // لكن هذا سيكون بطيئاً ومكثفاً على المتصفح.
-    
-    // للتوضيح: نعيد رابط تجريبي
-    // في الإصدار النهائي، ستستدعي API حقيقي
-    console.log(`طلب ضغط: ${seriesName} - حلقة ${episodeNum} من ${episodeUrl}`);
-    
-    // محاكاة تأخير
-    await new Promise(resolve => setTimeout(resolve, 3000));
-    
-    // نعيد رابط فيديو تجريبي (في الحقيقة ستجلب الرابط من السيرفر)
-    // يمكنك استخدام https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4
-    return 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
+// ===== تحديد الصفحة الحالية =====
+if (window.location.pathname.includes('series.html')) {
+    renderSeries();
+} else {
+    renderHome();
 }
-
-// ===== تشغيل الفيديو =====
-function playVideo(url, title) {
-    const oldContainer = document.querySelector('.video-container');
-    if (oldContainer) oldContainer.remove();
-
-    const container = document.createElement('div');
-    container.className = 'video-container active';
-    container.innerHTML = `
-        <h3 style="padding:15px; background:#111; margin:0;">▶️ ${title}</h3>
-        <video controls autoplay>
-            <source src="${url}" type="video/mp4">
-            متصفحك لا يدعم تشغيل الفيديو.
-        </video>
-    `;
-    document.getElementById('app').appendChild(container);
-    container.scrollIntoView({ behavior: 'smooth' });
-}
-
-// ===== التحميل والعرض =====
-fetchData().then(renderSeries);
