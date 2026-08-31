@@ -2,11 +2,11 @@ name: Daily Episode Updater
 
 on:
   schedule:
-    - cron: '0 2 * * *'   # كل يوم الساعة 2 صباحاً
-  workflow_dispatch:       # للتشغيل اليدوي
+    - cron: '0 2 * * *'
+  workflow_dispatch:
 
 permissions:
-  contents: write          # تكفي لإنشاء الإصدارات ودفع التغييرات
+  contents: write
 
 jobs:
   update:
@@ -17,6 +17,13 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Create data directory and metadata file if missing
+        run: |
+          mkdir -p data
+          if [ ! -f data/metadata.json ]; then
+            echo '{"series": {}}' > data/metadata.json
+          fi
 
       - name: Setup Python
         uses: actions/setup-python@v5
