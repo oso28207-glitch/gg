@@ -47,7 +47,6 @@ def setup_driver():
     chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
     
     try:
-        # استخدام webdriver-manager لتحميل ChromeDriver تلقائياً
         service = Service(ChromeDriverManager().install())
         driver = webdriver.Chrome(service=service, options=chrome_options)
         return driver
@@ -68,7 +67,6 @@ def get_all_series(url):
     series_list = []
     try:
         driver.get(url)
-        # انتظر حتى تظهر عناصر المسلسلات (باستخدام الكلاس الموجود في الموقع)
         wait = WebDriverWait(driver, 15)
         items = wait.until(EC.presence_of_all_elements_located((By.CLASS_NAME, "ItemNewly")))
         
@@ -81,7 +79,6 @@ def get_all_series(url):
                 title = link.get_attribute("title") or link.text.strip()
                 
                 if href and title and '/category/' in href:
-                    # تنظيف الاسم
                     title = re.sub(r'\s+', ' ', title).strip()
                     series_list.append({
                         'name': title,
@@ -93,7 +90,6 @@ def get_all_series(url):
                 
     except Exception as e:
         print(f"❌ فشل في تحميل الصفحة أو العثور على العناصر: {e}")
-        # محاولة بديلة باستخدام requests
         print("🔄 محاولة الجلب باستخدام requests...")
         return get_series_from_requests(url)
     finally:
@@ -110,9 +106,9 @@ def get_all_series(url):
     print(f"✅ تم العثور على {len(unique)} مسلسل")
     return unique[:MAX_SERIES]
 
-# ===== طريقة بديلة: جلب المسلسلات باستخدام requests (في حال فشل Selenium) =====
+# ===== طريقة بديلة: جلب المسلسلات باستخدام requests =====
 def get_series_from_requests(url):
-    """محاولة استخراج المسلسلات من HTML باستخدام requests (قد لا يعمل مع المحتوى الديناميكي)"""
+    """محاولة استخراج المسلسلات من HTML باستخدام requests"""
     print("📡 محاولة الجلب باستخدام requests...")
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -128,7 +124,6 @@ def get_series_from_requests(url):
     soup = BeautifulSoup(resp.text, 'html.parser')
     series_list = []
     
-    # البحث عن الروابط التي تحتوي على /category/
     for link in soup.find_all('a', href=True):
         href = link['href']
         if '/category/' in href and 'page/' not in href:
@@ -138,7 +133,6 @@ def get_series_from_requests(url):
                     href = 'https://lodynet.watch' + href
                 series_list.append({'name': title.strip(), 'url': href})
     
-    # إزالة التكرارات
     seen = set()
     unique = []
     for s in series_list:
@@ -153,7 +147,6 @@ def get_episodes_for_series(series_url):
     """استخراج أرقام الحلقات من صفحة المسلسل"""
     print(f"  📂 جلب حلقات من: {series_url[:60]}...")
     
-    # استخدام requests للحصول على HTML (صفحة الحلقات غالباً ثابتة)
     headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
     try:
         resp = requests.get(series_url, headers=headers, timeout=30)
@@ -188,21 +181,31 @@ def get_episodes_for_series(series_url):
     print(f"    ✅ تم العثور على {len(episodes)} حلقة")
     return episodes
 
-# ===== بناء هيكل الحلقات مع روابط الصفحات =====
+# ===== بناء هيكل الحلقات مع روابط الصفحات (تم التعديل) =====
 def build_episode_data(series_name, series_url, episode_numbers):
-    """بناء بيانات الحلقات مع روابط صفحاتها"""
+    """
+    بناء بيانات الحلقات مع روابط صفحاتها
+    التنسيق الصحيح للرابط: /اسم-المسلسل-الحلقة-رقم/
+    """
     episodes = []
     # استخراج الاسم الأساسي من رابط المسلسل
     series_slug = series_url.rstrip('/').split('/')[-1]
+    
+    # إزالة بادئة "category-" إن وجدت
     if series_slug.startswith('category-'):
         series_slug = series_slug[9:]
+    
+    # إزالة لاحقة "-مدب" إن وجدت
     if series_slug.endswith('-مدب'):
         series_slug = series_slug[:-4]
+    
+    # إزالة بادئة "مسلسل-" إن وجدت (لتجنب التكرار)
     if series_slug.startswith('مسلسل-'):
         series_slug = series_slug[7:]
     
     for ep_num in episode_numbers:
-        episode_url = f"https://lodynet.watch/{series_slug}-{ep_num}/"
+        # الرابط الصحيح: https://lodynet.watch/اسم-المسلسل-الحلقة-رقم/
+        episode_url = f"https://lodynet.watch/{series_slug}-الحلقة-{ep_num}/"
         episodes.append({
             'episode': ep_num,
             'url': episode_url,
@@ -214,10 +217,8 @@ def build_episode_data(series_name, series_url, episode_numbers):
 def main():
     print("🚀 بدء جلب الميتاداتا (باستخدام Selenium)...")
     
-    # إنشاء مجلد البيانات
     os.makedirs("data", exist_ok=True)
     
-    # تحميل البيانات الحالية إن وجدت
     metadata_path = "data/metadata.json"
     if os.path.exists(metadata_path):
         with open(metadata_path, "r", encoding="utf-8") as f:
@@ -225,12 +226,10 @@ def main():
     else:
         all_data = {"series": {}, "last_update": None}
     
-    # جلب جميع المسلسلات
     series_list = get_all_series(SERIES_PAGE)
     
     if not series_list:
         print("⚠️ لم يتم العثور على أي مسلسل. تحقق من الرابط أو من هيكل الموقع.")
-        # لا نعدل الملف الحالي
         return
     
     updated_count = 0
@@ -238,17 +237,14 @@ def main():
         name = series['name']
         url = series['url']
         
-        # التحقق مما إذا كان هذا المسلسل موجوداً بالفعل
         if name in all_data["series"]:
             existing_episodes = {e['episode'] for e in all_data["series"][name].get('episodes', [])}
         else:
             existing_episodes = set()
             all_data["series"][name] = {"episodes": []}
         
-        # جلب حلقات المسلسل
         episode_numbers = get_episodes_for_series(url)
         
-        # إضافة الحلقات الجديدة فقط
         new_episodes = [ep for ep in episode_numbers if ep not in existing_episodes]
         
         if new_episodes:
@@ -257,15 +253,12 @@ def main():
             all_data["series"][name]["episodes"].extend(new_ep_data)
             updated_count += len(new_episodes)
         
-        # تحديث رابط المسلسل (قد يتغير)
         all_data["series"][name]["url"] = url
         
-        # ننتظر قليلاً بين الطلبات لتجنب الحظر
         time.sleep(2)
     
     all_data["last_update"] = datetime.now().isoformat()
     
-    # حفظ البيانات
     with open(metadata_path, "w", encoding="utf-8") as f:
         json.dump(all_data, f, ensure_ascii=False, indent=2)
     
