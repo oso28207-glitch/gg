@@ -1,5 +1,5 @@
 // ===== الإعدادات =====
-const GITHUB_TOKEN = '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';
+const GITHUB_TOKEN = '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';
 
 // ===== دالة لتحديث التوكن يدوياً =====
 function updateToken() {
