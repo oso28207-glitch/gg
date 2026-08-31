@@ -1,9 +1,8 @@
 // ===== الإعدادات =====
-// تم تعديل الرابط ليتناسب مع مستودعك
 const METADATA_URL = 'https://raw.githubusercontent.com/oso28207-glitch/gg/main/data/metadata.json';
 let currentSeries = null;
 
-// ===== قراءة المعامل من الرابط (لصفحة الحلقات) =====
+// ===== قراءة المعامل من الرابط =====
 function getQueryParam(param) {
     const urlParams = new URLSearchParams(window.location.search);
     return urlParams.get(param);
@@ -55,7 +54,7 @@ async function renderHome() {
     }
 }
 
-// ===== عرض حلقات مسلسل معين (صفحة الحلقات) =====
+// ===== عرض حلقات مسلسل معين =====
 async function renderSeries() {
     const seriesName = getQueryParam('name');
     if (!seriesName) {
@@ -74,7 +73,6 @@ async function renderSeries() {
     const app = document.getElementById('app');
     app.innerHTML = '';
 
-    // ترتيب الحلقات تنازلياً (الأحدث أولاً)
     const episodes = [...series.episodes].sort((a, b) => b.episode - a.episode);
     const grid = document.createElement('div');
     grid.className = 'episode-grid';
@@ -93,6 +91,45 @@ async function renderSeries() {
     app.appendChild(grid);
 }
 
+// ===== التحقق مما إذا كان الرابط مباشراً =====
+function isDirectVideoUrl(url) {
+    const directExtensions = ['.mp4', '.m3u8', '.webm', '.ogg'];
+    return directExtensions.some(ext => url.toLowerCase().includes(ext));
+}
+
+// ===== محاولة تشغيل الفيديو مباشرة =====
+function playDirectVideo(url, title) {
+    const container = document.getElementById('videoContainer');
+    const player = document.getElementById('player');
+    const titleEl = document.getElementById('videoTitle');
+    container.classList.add('active');
+    titleEl.textContent = title;
+    player.src = url;
+    player.load();
+    player.play();
+}
+
+// ===== عرض الفيديو في iframe (حل بديل) =====
+function playInIframe(url, title) {
+    const container = document.getElementById('videoContainer');
+    const player = document.getElementById('player');
+    const titleEl = document.getElementById('videoTitle');
+    container.classList.add('active');
+    titleEl.textContent = `${title} (مشاهدة عبر الموقع الأصلي)`;
+    // إخفاء مشغل الفيديو وعرض iframe
+    player.style.display = 'none';
+    // إزالة أي iframe سابق
+    const oldIframe = container.querySelector('iframe');
+    if (oldIframe) oldIframe.remove();
+    const iframe = document.createElement('iframe');
+    iframe.src = url;
+    iframe.style.width = '100%';
+    iframe.style.height = '70vh';
+    iframe.style.border = 'none';
+    iframe.allowFullscreen = true;
+    container.appendChild(iframe);
+}
+
 // ===== معالجة الضغط والعرض =====
 async function handleEpisodeClick(btn) {
     if (btn.classList.contains('loading')) return;
@@ -103,72 +140,95 @@ async function handleEpisodeClick(btn) {
         return;
     }
 
-    // نأخذ أول سيرفر (يمكن تحسينها لاختيار الأسرع)
-    const videoUrl = servers[0];
-    btn.textContent = '⏳ جاري التحميل...';
-    btn.classList.add('loading');
+    // نبحث عن سيرفر يعمل
+    for (let i = 0; i < servers.length; i++) {
+        const videoUrl = servers[i];
+        btn.textContent = `⏳ محاولة ${i+1}/${servers.length}...`;
+        btn.classList.add('loading');
 
-    try {
-        // 1. تحميل الفيديو كـ ArrayBuffer
-        const response = await fetch(videoUrl);
-        if (!response.ok) throw new Error('فشل تحميل الفيديو');
-        const fileBuffer = await response.arrayBuffer();
-        const inputFileName = `input_${Date.now()}.mp4`;
-        const outputFileName = `output_${Date.now()}.mp4`;
+        try {
+            // إذا كان الرابط مباشراً، شغله بدون ضغط
+            if (isDirectVideoUrl(videoUrl)) {
+                playDirectVideo(videoUrl, `${btn.dataset.seriesName} - حلقة ${btn.dataset.episodeNum}`);
+                btn.textContent = '▶️ مشاهدة';
+                btn.classList.remove('loading');
+                btn.classList.add('done');
+                return;
+            }
 
-        // 2. ضغط الفيديو باستخدام FFmpeg.wasm
-        btn.textContent = '🔄 جاري الضغط إلى 240p...';
-        const { createFFmpeg, fetchFile } = FFmpeg;
-        const ffmpeg = createFFmpeg({ log: true });
-        await ffmpeg.load();
+            // محاولة تحميل الفيديو كـ ArrayBuffer (مع تجاوز CORS)
+            const response = await fetch(videoUrl, {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                    'Accept': 'video/mp4,video/webm,video/*'
+                },
+                mode: 'cors' // قد يفشل إذا كان السيرفر لا يدعم CORS
+            });
 
-        // كتابة الملف في الذاكرة الافتراضية
-        ffmpeg.FS('writeFile', inputFileName, await fetchFile(new Blob([fileBuffer])));
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
-        // تشغيل أمر الضغط
-        ffmpeg.setProgress(({ ratio }) => {
-            const percent = Math.round(ratio * 100);
-            document.getElementById('compressProgress').value = percent;
-            document.getElementById('progressText').textContent = `${percent}%`;
-        });
+            // تحقق من نوع المحتوى
+            const contentType = response.headers.get('content-type') || '';
+            if (contentType.includes('text/html')) {
+                // إذا كان الجواب HTML، فهذا يعني أن الرابط ليس مباشراً
+                throw new Error('Not a direct video');
+            }
 
-        await ffmpeg.run(
-            '-i', inputFileName,
-            '-vf', 'scale=-2:240',
-            '-c:v', 'libx264', '-crf', '30', '-preset', 'veryfast',
-            '-c:a', 'aac', '-b:a', '48k',
-            '-y', outputFileName
-        );
+            const fileBuffer = await response.arrayBuffer();
+            const inputFileName = `input_${Date.now()}.mp4`;
+            const outputFileName = `output_${Date.now()}.mp4`;
 
-        // قراءة الملف المضغوط
-        const data = ffmpeg.FS('readFile', outputFileName);
-        const blob = new Blob([data.buffer], { type: 'video/mp4' });
-        const url = URL.createObjectURL(blob);
+            // ضغط الفيديو باستخدام FFmpeg.wasm
+            btn.textContent = '🔄 جاري الضغط إلى 240p...';
+            const { createFFmpeg, fetchFile } = FFmpeg;
+            const ffmpeg = createFFmpeg({ log: true });
+            await ffmpeg.load();
 
-        // 3. عرض الفيديو
-        const container = document.getElementById('videoContainer');
-        const player = document.getElementById('player');
-        const title = document.getElementById('videoTitle');
-        container.classList.add('active');
-        title.textContent = `${btn.dataset.seriesName} - حلقة ${btn.dataset.episodeNum}`;
-        player.src = url;
-        player.load();
-        player.play();
+            ffmpeg.FS('writeFile', inputFileName, await fetchFile(new Blob([fileBuffer])));
 
-        // تنظيف الملفات من الذاكرة الافتراضية
-        ffmpeg.FS('unlink', inputFileName);
-        ffmpeg.FS('unlink', outputFileName);
+            ffmpeg.setProgress(({ ratio }) => {
+                const percent = Math.round(ratio * 100);
+                document.getElementById('compressProgress').value = percent;
+                document.getElementById('progressText').textContent = `${percent}%`;
+            });
 
-        btn.textContent = '▶️ مشاهدة';
-        btn.classList.remove('loading');
-        btn.classList.add('done');
+            await ffmpeg.run(
+                '-i', inputFileName,
+                '-vf', 'scale=-2:240',
+                '-c:v', 'libx264', '-crf', '30', '-preset', 'veryfast',
+                '-c:a', 'aac', '-b:a', '48k',
+                '-y', outputFileName
+            );
 
-    } catch (err) {
-        console.error(err);
-        btn.textContent = '❌ فشل';
-        btn.classList.remove('loading');
-        alert('حدث خطأ أثناء التحميل أو الضغط. تأكد من الرابط وحاول مرة أخرى.');
+            const data = ffmpeg.FS('readFile', outputFileName);
+            const blob = new Blob([data.buffer], { type: 'video/mp4' });
+            const url = URL.createObjectURL(blob);
+
+            playDirectVideo(url, `${btn.dataset.seriesName} - حلقة ${btn.dataset.episodeNum}`);
+            
+            // تنظيف
+            ffmpeg.FS('unlink', inputFileName);
+            ffmpeg.FS('unlink', outputFileName);
+
+            btn.textContent = '▶️ مشاهدة';
+            btn.classList.remove('loading');
+            btn.classList.add('done');
+            return; // نجاح
+
+        } catch (err) {
+            console.warn(`فشل السيرفر ${i+1}:`, err.message);
+            // استمر في محاولة السيرفرات التالية
+            continue;
+        }
     }
+
+    // إذا فشلت جميع السيرفرات، نعرض خيار iframe كحل أخير
+    const lastServer = servers[0]; // نأخذ أول سيرفر لعرضه في iframe
+    btn.textContent = '⚠️ فشل التحميل، عرض عبر iframe';
+    btn.classList.remove('loading');
+    playInIframe(lastServer, `${btn.dataset.seriesName} - حلقة ${btn.dataset.episodeNum}`);
+    btn.textContent = '▶️ مشاهدة (iframe)';
+    btn.classList.add('done');
 }
 
 // ===== تحديد الصفحة الحالية =====
