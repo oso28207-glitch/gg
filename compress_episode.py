@@ -1,19 +1,15 @@
 #!/usr/bin/env python3
 """
-ضغط حلقة معينة عند الطلب باستخدام Selenium و yt-dlp مع تجاوز الأخطاء الشائعة.
+ضغط حلقة معينة عند الطلب باستخدام Selenium و yt-dlp مع محاكاة متقدمة.
 """
 import os
 import sys
 import json
 import time
 import re
-import base64
 import requests
 import subprocess
-import ssl
-import certifi
-from github import Github
-from github import Auth
+from github import Github, Auth
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
@@ -23,12 +19,13 @@ from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 import yt_dlp
 
-# ===== إصلاح مشكلة SSL =====
-# تعيين مسار شهادات SSL الصحيح
+# ===== إصلاح SSL =====
+import ssl
+import certifi
 os.environ['SSL_CERT_FILE'] = certifi.where()
 os.environ['REQUESTS_CA_BUNDLE'] = certifi.where()
 
-# ===== قراءة المتغيرات البيئية =====
+# ===== قراءة المتغيرات =====
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
 if not GITHUB_TOKEN:
     print("❌ GITHUB_TOKEN غير موجود")
@@ -49,12 +46,12 @@ if not SERIES_NAME or not EPISODE_NUM:
 EPISODE_NUM = int(EPISODE_NUM)
 RELEASE_TAG = "compressed-episodes"
 
-# ===== الاتصال بـ GitHub =====
+# ===== GitHub =====
 auth = Auth.Token(GITHUB_TOKEN)
 g = Github(auth=auth)
 repo = g.get_repo(REPO_NAME)
 
-# ===== دوال التعامل مع metadata.json =====
+# ===== دوال الميتاداتا =====
 def load_metadata():
     try:
         contents = repo.get_contents("data/metadata.json")
@@ -78,7 +75,7 @@ def save_metadata(data):
             json.dumps(data, ensure_ascii=False, indent=2)
         )
 
-# ===== إعداد Selenium المحسّن =====
+# ===== إعداد Selenium المتقدم =====
 def setup_selenium():
     chrome_options = Options()
     chrome_options.add_argument('--headless')
@@ -110,51 +107,78 @@ def extract_direct_video_with_selenium(server_url, referer):
     if not driver:
         return None
     try:
-        print(f"🔄 فتح السيرفر باستخدام Selenium: {server_url[:80]}...")
+        print(f"🔄 فتح السيرفر: {server_url[:80]}...")
         driver.get(server_url)
         
-        # انتظار تحميل الصفحة بالكامل (10 ثوانٍ بدلاً من 5)
+        # الانتظار حتى يتم تحميل الصفحة (زيادة الوقت)
         time.sleep(10)
         
-        # البحث عن أي فيديو في الصفحة
+        # محاولة العثور على زر التشغيل والنقر عليه (للسيرفرات التي تحتاج تفعيل)
         try:
-            videos = driver.find_elements(By.TAG_NAME, 'video')
-            for video in videos:
-                src = video.get_attribute('src')
-                if src and src.startswith('http') and ('.mp4' in src or '.m3u8' in src):
-                    print(f"✅ تم العثور على رابط فيديو مباشر: {src[:80]}...")
-                    driver.quit()
-                    return src
+            play_buttons = driver.find_elements(By.CSS_SELECTOR, 'button[aria-label*="play"], button[aria-label*="Play"], .play-button, .vjs-big-play-button')
+            for btn in play_buttons:
+                try:
+                    btn.click()
+                    print("  ▶️ تم النقر على زر التشغيل")
+                    time.sleep(3)
+                    break
+                except:
+                    continue
         except:
             pass
         
-        # البحث عن الروابط داخل النص
+        # البحث عن فيديو مباشر
+        # 1. عنصر video
+        videos = driver.find_elements(By.TAG_NAME, 'video')
+        for video in videos:
+            src = video.get_attribute('src')
+            if src and src.startswith('http') and ('.mp4' in src or '.m3u8' in src):
+                print(f"✅ تم العثور على رابط من video: {src[:80]}")
+                driver.quit()
+                return src
+            # البحث عن مصدر داخل video
+            sources = video.find_elements(By.TAG_NAME, 'source')
+            for src_elem in sources:
+                src = src_elem.get_attribute('src')
+                if src and src.startswith('http'):
+                    print(f"✅ تم العثور على رابط من source: {src[:80]}")
+                    driver.quit()
+                    return src
+        
+        # 2. البحث في كود الصفحة
         page_source = driver.page_source
         matches = re.findall(r'(https?://[^"\']+\.(?:mp4|m3u8|webm)[^"\']*)', page_source)
-        if matches:
-            # نأخذ أول رابط صحيح
-            for url in matches:
-                if 'novideo' not in url and 'player' not in url:
-                    print(f"✅ تم استخراج رابط مباشر: {url[:80]}...")
-                    driver.quit()
-                    return url
+        for url in matches:
+            if 'novideo' not in url and 'player' not in url:
+                print(f"✅ تم استخراج رابط من الصفحة: {url[:80]}")
+                driver.quit()
+                return url
         
-        # البحث داخل iframes (هذا هو المفتاح!)
+        # 3. البحث داخل iframes (الأكثر أهمية)
         iframes = driver.find_elements(By.TAG_NAME, 'iframe')
         for iframe in iframes:
             src = iframe.get_attribute('src')
             if src and ('video' in src or 'embed' in src or 'player' in src or 'ok.ru' in src or 'dood' in src):
                 try:
                     driver.switch_to.frame(iframe)
-                    time.sleep(3)
+                    time.sleep(5)  # انتظار تحميل المحتوى داخل الإطار
                     iframe_source = driver.page_source
-                    # نبحث عن الروابط داخل الـ iframe
-                    matches = re.findall(r'(https?://[^"\']+\.(?:mp4|m3u8|webm)[^"\']*)', iframe_source)
-                    if matches:
-                        for url in matches:
+                    # البحث عن فيديو داخل الإطار
+                    inner_videos = driver.find_elements(By.TAG_NAME, 'video')
+                    for v in inner_videos:
+                        src2 = v.get_attribute('src')
+                        if src2 and src2.startswith('http'):
+                            print(f"✅ تم العثور على رابط داخل iframe: {src2[:80]}")
+                            driver.switch_to.default_content()
+                            driver.quit()
+                            return src2
+                    # البحث عن روابط في النص
+                    matches2 = re.findall(r'(https?://[^"\']+\.(?:mp4|m3u8)[^"\']*)', iframe_source)
+                    if matches2:
+                        for url in matches2:
                             if 'novideo' not in url:
+                                print(f"✅ تم استخراج رابط من iframe: {url[:80]}")
                                 driver.switch_to.default_content()
-                                print(f"✅ تم استخراج رابط من iframe: {url[:80]}...")
                                 driver.quit()
                                 return url
                     driver.switch_to.default_content()
@@ -173,7 +197,7 @@ def extract_direct_video_with_selenium(server_url, referer):
             pass
         return None
 
-# ===== التنزيل باستخدام yt-dlp مع خيارات تجاوز Cloudflare =====
+# ===== التنزيل باستخدام yt-dlp مع خيارات محاكاة =====
 def download_with_ytdlp(url, output_path, referer):
     try:
         safe_referer = re.sub(r'[^\x00-\x7F]+', '', referer) if referer else ''
@@ -186,7 +210,7 @@ def download_with_ytdlp(url, output_path, referer):
             'socket_timeout': 60,
             'extractor_args': {
                 'generic': {
-                    'impersonate': True,  # لتجاوز Cloudflare
+                    'impersonate': ['chrome'],  # محاكاة متصفح Chrome
                     'no-playlist': True,
                 }
             },
@@ -204,72 +228,62 @@ def download_with_ytdlp(url, output_path, referer):
         print(f"⚠️ فشل yt-dlp: {e}")
         return False
 
-# ===== التنزيل باستخدام requests (مع تجاوز SSL) =====
+# ===== التنزيل باستخدام requests مع تجاوز SSL =====
 def download_with_requests(url, output_path, referer):
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         'Referer': referer,
-        'Accept-Language': 'ar-SA,ar;q=0.9,en;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
     }
     try:
-        # تعطيل التحقق من SSL مؤقتاً لتجنب أخطاء الشهادات
         with requests.get(url, headers=headers, stream=True, timeout=120, verify=False) as r:
             r.raise_for_status()
             total_size = int(r.headers.get('content-length', 0))
-            block_size = 8192
             downloaded = 0
             with open(output_path, 'wb') as f:
-                for chunk in r.iter_content(chunk_size=block_size):
+                for chunk in r.iter_content(chunk_size=8192):
                     if chunk:
                         f.write(chunk)
                         downloaded += len(chunk)
                         if total_size > 0:
-                            percent = (downloaded / total_size) * 100
-                            print(f"\r⏳ جاري التحميل: {percent:.1f}%", end='')
+                            print(f"\r⏳ تحميل: {downloaded/total_size*100:.1f}%", end='')
             print()
-        # إعادة تمكين التحقق من SSL بعد التحميل (اختياري)
         return os.path.exists(output_path) and os.path.getsize(output_path) > 0
     except Exception as e:
-        print(f"❌ فشل التنزيل عبر requests: {e}")
+        print(f"❌ فشل requests: {e}")
         return False
 
-# ===== دالة التحميل والضغط الرئيسية (محسّنة) =====
+# ===== دالة التحميل والضغط الرئيسية =====
 def download_and_compress(episode_data, output_path):
     servers = episode_data.get("servers", [])
     page_url = episode_data.get("url", "")
     
     if not servers:
-        print("❌ لا توجد سيرفرات لهذه الحلقة")
+        print("❌ لا توجد سيرفرات")
         return False
 
     print(f"🔍 تم العثور على {len(servers)} سيرفر.")
-
     temp_file = "temp_input.mp4"
-    
+
     for idx, server_url in enumerate(servers, 1):
         print(f"\n🔄 محاولة السيرفر {idx}: {server_url[:80]}...")
         
-        # === المحاولة 1: Selenium + requests ===
+        # 1. محاولة استخراج رابط مباشر باستخدام Selenium
         direct_url = extract_direct_video_with_selenium(server_url, page_url)
         if direct_url and 'novideo' not in direct_url:
             print(f"✅ تم استخراج رابط مباشر: {direct_url[:80]}...")
+            # محاولة التحميل باستخدام requests
             if download_with_requests(direct_url, temp_file, page_url):
                 print("✅ تم التحميل بنجاح (requests)")
                 break
-            else:
-                print("⚠️ فشل التنزيل عبر requests، نحاول yt-dlp على نفس الرابط...")
-                if download_with_ytdlp(direct_url, temp_file, page_url):
-                    print("✅ تم التحميل بنجاح (yt-dlp)")
-                    break
-        
-        # === المحاولة 2: Selenium + yt-dlp (على الرابط المستخرج) ===
-        if direct_url and 'novideo' not in direct_url:
+            # إذا فشل requests، نحاول yt-dlp على نفس الرابط
+            print("🔄 محاولة yt-dlp على الرابط المباشر...")
             if download_with_ytdlp(direct_url, temp_file, page_url):
                 print("✅ تم التحميل بنجاح (yt-dlp)")
                 break
         
-        # === المحاولة 3: yt-dlp مباشرة على رابط السيرفر ===
-        print("🔄 محاولة التنزيل عبر yt-dlp على رابط السيرفر...")
+        # 2. محاولة استخدام yt-dlp مباشرة على رابط السيرفر (كحل أخير)
+        print("🔄 محاولة yt-dlp على رابط السيرفر...")
         if download_with_ytdlp(server_url, temp_file, page_url):
             print("✅ تم التحميل بنجاح (yt-dlp مباشرة)")
             break
@@ -277,7 +291,7 @@ def download_and_compress(episode_data, output_path):
         print("❌ فشل التحميل من جميع السيرفرات")
         return False
 
-    # التحقق من الملف المحمل
+    # التحقق من الملف
     if not os.path.exists(temp_file) or os.path.getsize(temp_file) == 0:
         print("❌ الملف المحمل غير صالح")
         return False
@@ -302,7 +316,7 @@ def download_and_compress(episode_data, output_path):
             os.remove(temp_file)
         return False
 
-# ===== رفع الفيديو المضغوط إلى Releases =====
+# ===== رفع الملف إلى Releases =====
 def upload_to_release(file_path):
     try:
         release = repo.get_release(RELEASE_TAG)
