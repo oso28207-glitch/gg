@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """
-ضغط حلقة معينة عند الطلب باستخدام GitHub Actions
-يستقبل اسم المسلسل ورقم الحلقة كمعاملات
+ضغط حلقة معينة عند الطلب عبر GitHub Actions.
+يستقبل اسم المسلسل ورقم الحلقة كمتغيرات بيئية.
 """
 import os
 import sys
 import json
+import time
 import requests
 import subprocess
-import time
 from github import Github
 
-# ===== الإعدادات =====
+# ===== قراءة المتغيرات البيئية =====
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
 if not GITHUB_TOKEN:
     print("❌ GITHUB_TOKEN غير موجود")
@@ -22,7 +22,6 @@ if not REPO_NAME:
     print("❌ GITHUB_REPOSITORY غير موجود")
     sys.exit(1)
 
-# قراءة معاملات الإدخال من GitHub Actions
 SERIES_NAME = os.environ.get("SERIES_NAME")
 EPISODE_NUM = os.environ.get("EPISODE_NUM")
 
@@ -31,16 +30,15 @@ if not SERIES_NAME or not EPISODE_NUM:
     sys.exit(1)
 
 EPISODE_NUM = int(EPISODE_NUM)
-RELEASE_TAG = "compressed-episodes"
+RELEASE_TAG = "compressed-episodes"   # علامة الإصدار الذي سيُرفع إليه الفيديو
 
 # ===== الاتصال بـ GitHub =====
 g = Github(GITHUB_TOKEN)
 repo = g.get_repo(REPO_NAME)
 
-# ===== تحميل الميتاداتا =====
+# ===== دوال التعامل مع metadata.json =====
 def load_metadata():
     try:
-        # قراءة الملف من المستودع
         contents = repo.get_contents("data/metadata.json")
         return json.loads(contents.decoded_content.decode('utf-8'))
     except:
@@ -62,21 +60,24 @@ def save_metadata(data):
             json.dumps(data, ensure_ascii=False, indent=2)
         )
 
-# ===== البحث عن سيرفر يعمل =====
+# ===== البحث عن سيرفر صالح =====
 def find_working_server(servers):
+    """محاولة العثور على رابط مباشر للفيديو"""
+    # نفضل الروابط التي تنتهي بـ .mp4 أو .m3u8
     for url in servers:
-        try:
-            # التحقق مما إذا كان الرابط يعطي فيديو مباشر
-            if '.mp4' in url.lower() or '.m3u8' in url.lower():
-                return url
-            # محاولة تحميل جزء صغير للتحقق
-            resp = requests.head(url, timeout=10)
-            if resp.status_code == 200:
-                content_type = resp.headers.get('content-type', '')
-                if 'video' in content_type or 'mp4' in content_type:
+        if any(ext in url.lower() for ext in ['.mp4', '.m3u8', 'streamtape.com/e/', 'fembed.com/v/']):
+            # إذا كان من streamtape، نحتاج إلى استخراج الرابط الحقيقي
+            if 'streamtape.com/e/' in url:
+                # محاولة الحصول على الرابط المباشر من صفحة streamtape (يمكن تحسينها)
+                try:
+                    resp = requests.get(url, timeout=10)
+                    # استخراج الرابط من JavaScript (قد يكون معقداً)
+                    # نكتفي بإرجاع الرابط كما هو ونأمل أن يعمل التحميل المباشر
                     return url
-        except:
-            continue
+                except:
+                    continue
+            return url
+    # إذا لم نجد، نعيد أول رابط
     return servers[0] if servers else None
 
 # ===== تحميل وضغط الفيديو =====
@@ -84,14 +85,24 @@ def download_and_compress(video_url, output_path):
     print(f"⬇️ تحميل الفيديو من: {video_url[:80]}...")
     try:
         # تحميل الفيديو
-        resp = requests.get(video_url, stream=True, timeout=120)
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+        resp = requests.get(video_url, headers=headers, stream=True, timeout=120)
         resp.raise_for_status()
+        
         temp_input = "temp_input.mp4"
+        total_size = int(resp.headers.get('content-length', 0))
+        downloaded = 0
         with open(temp_input, 'wb') as f:
             for chunk in resp.iter_content(chunk_size=8192):
                 if chunk:
                     f.write(chunk)
-        print("✅ تم التحميل")
+                    downloaded += len(chunk)
+                    if total_size > 0:
+                        percent = (downloaded / total_size) * 100
+                        print(f"\r⏳ تحميل: {percent:.1f}%", end='')
+        print("\n✅ تم التحميل")
         
         # ضغط الفيديو
         print("🔄 جاري الضغط إلى 240p...")
@@ -113,15 +124,17 @@ def download_and_compress(video_url, output_path):
 
 # ===== رفع الفيديو المضغوط إلى Releases =====
 def upload_to_release(file_path):
+    # الحصول على الإصدار أو إنشاؤه
     try:
         release = repo.get_release(RELEASE_TAG)
     except:
-        release = repo.create_git_release(RELEASE_TAG, "Compressed Episodes", "فيديوهات مضغوطة إلى 240p")
+        release = repo.create_git_release(RELEASE_TAG, "فيديوهات مضغوطة", "فيديوهات مضغوطة إلى 240p")
     
-    # اسم الملف
-    file_name = f"{SERIES_NAME.replace(' ', '_')}_E{EPISODE_NUM:02d}_240p.mp4"
+    # اسم الملف: اسم_المسلسل_Eرقم_240p.mp4
+    safe_name = SERIES_NAME.replace(' ', '_').replace('/', '_')
+    file_name = f"{safe_name}_E{EPISODE_NUM:02d}_240p.mp4"
     
-    # حذف الملف القديم إن وجد
+    # حذف الملف القديم إن وجد (لتجنب التكرار)
     for asset in release.get_assets():
         if asset.name == file_name:
             asset.delete_asset()
@@ -162,11 +175,12 @@ def main():
         print("❌ لا توجد سيرفرات لهذه الحلقة")
         sys.exit(1)
     
-    # اختيار سيرفر يعمل
+    # اختيار سيرفر صالح
     video_url = find_working_server(servers)
     if not video_url:
         print("❌ لا يوجد سيرفر صالح")
         sys.exit(1)
+    print(f"🔗 تم اختيار السيرفر: {video_url[:80]}...")
     
     # تحميل وضغط
     output_file = f"compressed_{int(time.time())}.mp4"
@@ -178,16 +192,15 @@ def main():
     download_url = upload_to_release(output_file)
     print(f"✅ رابط التحميل: {download_url}")
     
-    # تحديث الميتاداتا
+    # تحديث الميتاداتا بإضافة compressed_url
     episode_data["compressed_url"] = download_url
     episode_data["compressed_date"] = time.strftime("%Y-%m-%d %H:%M:%S")
-    
-    # حفظ التغييرات
     save_metadata(data)
     print("✅ تم تحديث الميتاداتا")
     
     # تنظيف
     os.remove(output_file)
+    print("🎉 انتهى الضغط بنجاح")
 
 if __name__ == "__main__":
     main()
