@@ -1,0 +1,50 @@
+name: Compress Episode on Demand
+
+on:
+  workflow_dispatch:
+    inputs:
+      series_name:
+        description: 'اسم المسلسل (كما هو في metadata.json)'
+        required: true
+        type: string
+      episode_number:
+        description: 'رقم الحلقة'
+        required: true
+        type: number
+
+permissions:
+  contents: write
+  releases: write
+
+jobs:
+  compress:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Install dependencies
+        run: pip install requests PyGithub
+
+      - name: Run compressor
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SERIES_NAME: ${{ github.event.inputs.series_name }}
+          EPISODE_NUM: ${{ github.event.inputs.episode_number }}
+        run: python compress_episode.py
+
+      - name: Commit and push changes (metadata.json)
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/metadata.json
+          git diff --staged --quiet || git commit -m "تحديث رابط الحلقة المضغوطة: ${{ github.event.inputs.series_name }} - ${{ github.event.inputs.episode_number }}"
+          git push
