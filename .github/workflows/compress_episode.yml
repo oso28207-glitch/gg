@@ -13,8 +13,7 @@ on:
         type: number
 
 permissions:
-  contents: write
-  releases: write
+  contents: write          # ✅ هذه الصلاحية تكفي لإنشاء الإصدارات ودفع التغييرات
 
 jobs:
   compress:
