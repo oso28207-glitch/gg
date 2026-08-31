@@ -1,8 +1,8 @@
-name: Daily Episode Updater
+name: Daily Metadata Update
 
 on:
   schedule:
-    - cron: '0 2 * * *'
+    - cron: '0 */6 * * *'   # كل 6 ساعات
   workflow_dispatch:
 
 permissions:
@@ -11,37 +11,22 @@ permissions:
 jobs:
   update:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Create data directory and metadata file if missing
-        run: |
-          mkdir -p data
-          if [ ! -f data/metadata.json ]; then
-            echo '{"series": {}}' > data/metadata.json
-          fi
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      - name: Install ffmpeg
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Install dependencies
+        run: pip install requests beautifulsoup4
 
-      - name: Install Python dependencies
-        run: pip install requests beautifulsoup4 json5 PyGithub
-
-      - name: Run scraper
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run metadata scraper
         run: python scraper.py
 
-      - name: Commit and push changes (metadata.json)
+      - name: Commit and push changes
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
