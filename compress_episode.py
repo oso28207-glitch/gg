@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
-ضغط حلقة معينة عند الطلب باستخدام Selenium لاستخراج الروابط المباشرة.
-يستقبل اسم المسلسل ورقم الحلقة كمتغيرات بيئية.
+ضغط حلقة معينة عند الطلب باستخدام Selenium و yt-dlp لاستخراج الروابط المباشرة.
 """
 import os
 import sys
@@ -19,6 +18,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
+import yt_dlp
 
 # ===== قراءة المتغيرات البيئية =====
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
@@ -42,7 +42,10 @@ EPISODE_NUM = int(EPISODE_NUM)
 RELEASE_TAG = "compressed-episodes"
 
 # ===== الاتصال بـ GitHub =====
-g = Github(GITHUB_TOKEN)
+# ملاحظة: استخدم auth=github.Auth.Token(...) للتخلص من التحذير
+from github import Auth
+auth = Auth.Token(GITHUB_TOKEN)
+g = Github(auth=auth)
 repo = g.get_repo(REPO_NAME)
 
 # ===== دوال التعامل مع metadata.json =====
@@ -95,31 +98,54 @@ def setup_selenium():
         return None
 
 # ===== استخراج الرابط المباشر باستخدام Selenium =====
-def extract_direct_video_with_selenium(server_url):
+def extract_direct_video_with_selenium(server_url, referer):
     driver = setup_selenium()
     if not driver:
         return None
     try:
         print(f"🔄 فتح السيرفر باستخدام Selenium: {server_url[:80]}...")
         driver.get(server_url)
-        # انتظر حتى يتم تحميل الصفحة
+        # انتظر قليلاً لتحميل الصفحة
         time.sleep(5)
         page_source = driver.page_source
         
-        # البحث عن رابط mp4 مباشر
+        # 1. البحث عن رابط mp4 مباشر
         match = re.search(r'(https?://[^"\']+\.mp4[^"\']*)', page_source)
         if match:
             return match.group(1)
         
-        # البحث عن sources في JavaScript
-        match = re.search(r'sources:\s*\[\s*"([^"]+\.mp4[^"]*)"\s*\]', page_source)
-        if match:
-            return match.group(1)
-        
-        # البحث عن رابط m3u8
+        # 2. البحث عن رابط m3u8
         match = re.search(r'(https?://[^"\']+\.m3u8[^"\']*)', page_source)
         if match:
             return match.group(1)
+        
+        # 3. البحث عن عنصر الفيديو نفسه
+        try:
+            video = driver.find_element(By.TAG_NAME, 'video')
+            src = video.get_attribute('src')
+            if src and src.startswith('http'):
+                return src
+        except:
+            pass
+        
+        # 4. البحث داخل iframes
+        iframes = driver.find_elements(By.TAG_NAME, 'iframe')
+        for iframe in iframes:
+            src = iframe.get_attribute('src')
+            if src and ('video' in src or 'embed' in src or 'player' in src):
+                # نحاول استخراج الرابط من الـ iframe
+                try:
+                    driver.switch_to.frame(iframe)
+                    time.sleep(2)
+                    iframe_source = driver.page_source
+                    match = re.search(r'(https?://[^"\']+\.mp4[^"\']*)', iframe_source)
+                    if match:
+                        driver.switch_to.default_content()
+                        return match.group(1)
+                    driver.switch_to.default_content()
+                except:
+                    driver.switch_to.default_content()
+                    continue
         
         return None
     except Exception as e:
@@ -128,7 +154,7 @@ def extract_direct_video_with_selenium(server_url):
     finally:
         driver.quit()
 
-# ===== تحميل الفيديو باستخدام requests =====
+# ===== التنزيل باستخدام requests =====
 def download_with_requests(url, output_path, referer):
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -155,13 +181,84 @@ def download_with_requests(url, output_path, referer):
         print(f"❌ فشل التنزيل عبر requests: {e}")
         return False
 
-# ===== ضغط الفيديو =====
-def compress_to_240p(input_path, output_path):
-    if not os.path.exists(input_path):
+# ===== التنزيل باستخدام yt-dlp =====
+def download_with_ytdlp(url, output_path, referer):
+    try:
+        # نزيل الأحرف العربية من الـ referer إن وجدت
+        safe_referer = re.sub(r'[^\x00-\x7F]+', '', referer) if referer else ''
+        ydl_opts = {
+            'format': 'best[height<=720]/best',
+            'outtmpl': output_path,
+            'quiet': False,
+            'retries': 3,
+            'fragment_retries': 3,
+            'socket_timeout': 30,
+            'extractor_args': {'generic': 'impersonate'},
+            'encoding': 'utf-8',
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Referer': safe_referer,
+                'Accept-Language': 'en-US,en;q=0.9',
+            }
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
+        return os.path.exists(output_path)
+    except Exception as e:
+        print(f"⚠️ فشل yt-dlp: {e}")
         return False
+
+# ===== دالة التحميل والضغط الرئيسية =====
+def download_and_compress(episode_data, output_path):
+    """
+    تحاول تحميل الفيديو من السيرفرات باستخدام عدة استراتيجيات.
+    """
+    servers = episode_data.get("servers", [])
+    page_url = episode_data.get("url", "")
+    
+    if not servers:
+        print("❌ لا توجد سيرفرات لهذه الحلقة")
+        return False
+
+    print(f"🔍 تم العثور على {len(servers)} سيرفر.")
+
+    temp_file = "temp_input.mp4"
+    
+    for idx, server_url in enumerate(servers, 1):
+        print(f"\n🔄 محاولة السيرفر {idx}: {server_url[:80]}...")
+        
+        # الاستراتيجية 1: استخراج رابط مباشر باستخدام Selenium
+        direct_url = extract_direct_video_with_selenium(server_url, page_url)
+        if direct_url:
+            print(f"✅ تم استخراج رابط مباشر: {direct_url[:80]}...")
+            if download_with_requests(direct_url, temp_file, page_url):
+                print("✅ تم التحميل بنجاح")
+                break
+            else:
+                print("⚠️ فشل التنزيل عبر requests، نحاول yt-dlp...")
+                if download_with_ytdlp(direct_url, temp_file, page_url):
+                    print("✅ تم التحميل بنجاح")
+                    break
+        
+        # الاستراتيجية 2: استخدام yt-dlp مباشرة على رابط السيرفر
+        print("🔄 محاولة التنزيل عبر yt-dlp على رابط السيرفر...")
+        if download_with_ytdlp(server_url, temp_file, page_url):
+            print("✅ تم التحميل بنجاح")
+            break
+    else:
+        # إذا انتهت الحلقة دون break (أي فشل جميع السيرفرات)
+        print("❌ فشل التحميل من جميع السيرفرات")
+        return False
+
+    # التحقق من وجود الملف المحمل
+    if not os.path.exists(temp_file) or os.path.getsize(temp_file) == 0:
+        print("❌ الملف المحمل غير صالح")
+        return False
+
+    # ضغط الفيديو
     print("🔄 جاري الضغط إلى 240p...")
     cmd = [
-        'ffmpeg', '-i', input_path,
+        'ffmpeg', '-i', temp_file,
         '-vf', 'scale=-2:240',
         '-c:v', 'libx264', '-crf', '30', '-preset', 'veryfast',
         '-c:a', 'aac', '-b:a', '48k',
@@ -169,9 +266,13 @@ def compress_to_240p(input_path, output_path):
     ]
     try:
         subprocess.run(cmd, check=True, timeout=600)
-        return os.path.exists(output_path)
+        print("✅ تم الضغط بنجاح")
+        os.remove(temp_file)
+        return True
     except Exception as e:
         print(f"❌ فشل الضغط: {e}")
+        if os.path.exists(temp_file):
+            os.remove(temp_file)
         return False
 
 # ===== رفع الفيديو المضغوط إلى Releases =====
@@ -201,7 +302,6 @@ def upload_to_release(file_path):
 def main():
     print(f"🚀 بدء ضغط الحلقة: {SERIES_NAME} - {EPISODE_NUM}")
     
-    # تحميل الميتاداتا
     data = load_metadata()
     series = data.get("series", {}).get(SERIES_NAME)
     if not series:
@@ -218,64 +318,22 @@ def main():
         print(f"❌ الحلقة {EPISODE_NUM} غير موجودة")
         sys.exit(1)
     
-    servers = episode_data.get("servers", [])
-    if not servers:
-        print("❌ لا توجد سيرفرات لهذه الحلقة")
-        sys.exit(1)
-    
-    temp_file = f"temp_{int(time.time())}.mp4"
-    downloaded = False
-    direct_url = None
-    
-    # محاولة استخراج رابط مباشر من كل سيرفر
-    for idx, server_url in enumerate(servers, 1):
-        print(f"🔄 محاولة السيرفر {idx}: {server_url[:80]}...")
-        
-        direct_url = extract_direct_video_with_selenium(server_url)
-        if direct_url:
-            print(f"✅ تم استخراج رابط مباشر: {direct_url[:80]}...")
-            if download_with_requests(direct_url, temp_file, server_url):
-                downloaded = True
-                break
-            else:
-                print("⚠️ فشل التنزيل من هذا السيرفر، نحاول التالي...")
-                continue
-    
-    if not downloaded:
-        print("❌ فشل تحميل الفيديو من جميع السيرفرات")
-        sys.exit(1)
-    
-    # ضغط الفيديو
     output_file = f"compressed_{int(time.time())}.mp4"
-    if not compress_to_240p(temp_file, output_file):
-        print("❌ فشل الضغط")
-        # نحتفظ بالملف الأصلي مؤقتاً
-        shutil.copy2(temp_file, output_file)
-        print("⚠️ تم حفظ الملف الأصلي بدلاً من المضغوط")
     
-    # تنظيف الملف المؤقت
-    try:
-        os.remove(temp_file)
-    except:
-        pass
+    if not download_and_compress(episode_data, output_file):
+        print("❌ فشل تحميل وضغط الفيديو")
+        sys.exit(1)
     
-    # رفع إلى Releases
     print("⬆️ رفع الملف إلى GitHub Releases...")
     download_url = upload_to_release(output_file)
     print(f"✅ رابط التحميل: {download_url}")
     
-    # تحديث الميتاداتا
     episode_data["compressed_url"] = download_url
     episode_data["compressed_date"] = time.strftime("%Y-%m-%d %H:%M:%S")
     save_metadata(data)
     print("✅ تم تحديث الميتاداتا")
     
-    # تنظيف
-    try:
-        os.remove(output_file)
-    except:
-        pass
-    
+    os.remove(output_file)
     print("🎉 انتهى الضغط بنجاح")
 
 if __name__ == "__main__":
