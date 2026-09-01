@@ -1,4 +1,4 @@
-name: Compress Episode on Demand
+name: ضغط حلقة عند الطلب
 
 on:
   workflow_dispatch:
@@ -18,44 +18,29 @@ permissions:
 jobs:
   compress:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
+      - name: استنساخ المستودع
         uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: إعداد Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      - name: Install Chrome and ChromeDriver
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y wget unzip
-          wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
-          sudo sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list'
-          sudo apt-get update
-          sudo apt-get install -y google-chrome-stable
-          CHROME_VERSION=$(google-chrome --version | awk '{print $3}')
-          wget -q "https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/$CHROME_VERSION/linux64/chromedriver-linux64.zip"
-          unzip chromedriver-linux64.zip
-          sudo mv chromedriver-linux64/chromedriver /usr/local/bin/
-          sudo chmod +x /usr/local/bin/chromedriver
-
-      - name: Install ffmpeg
+      - name: تثبيت ffmpeg
         run: sudo apt-get install -y ffmpeg
 
-      - name: Install dependencies
+      - name: تثبيت التبعيات
         run: pip install -r requirements.txt
 
-      - name: Run compressor
+      - name: تشغيل سكربت الضغط
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SERIES_NAME: ${{ github.event.inputs.series_name }}
           EPISODE_NUM: ${{ github.event.inputs.episode_number }}
         run: python compress_episode.py
 
-      - name: Commit and push changes (metadata.json)
+      - name: رفع التغييرات (metadata.json)
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
