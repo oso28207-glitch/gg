@@ -1,4 +1,8 @@
 {
-    "search_url": "https://laaroza.mom/search.php?keywords=%D9%85%D8%AF%D8%A8%D9%84%D8%AC%D8%A9&video-id=",
-    "max_series": 100
+    "search_sources": [
+        "https://laaroza.mom/search.php?keywords=%D9%85%D8%AF%D8%A8%D9%84%D8%AC%D8%A9&video-id=",
+        "https://aa.3ick.net/genre/series-mudablij-121"
+    ],
+    "max_series": 50,
+    "github_release_tag": "compressed-episodes"
 }
