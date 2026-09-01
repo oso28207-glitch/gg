@@ -1,10 +1,10 @@
 // =============================================
 // إعدادات التطبيق
 // =============================================
-// ⚠️ تحذير: تخزين التوكن في الكود المصدري غير آمن. استخدم هذا فقط للتجربة.
-const GITHUB_TOKEN = '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';
-const METADATA_URL = 'https://raw.githubusercontent.com/oso28207-glitch/gg/refs/heads/main/data/metadata.json'; // أو 'data/metadata.json' حسب موقع الملف
-const ACTION_API_URL = 'https://api.github.com/repos/oso28207-glitch/gg/actions/workflows/compress_episode.yml/dispatches';
+// ⚠️ تنبيه: هذا التوكن مخصص للتجربة فقط. في الإنتاج استخدم طريقة آمنة.
+const GITHUB_TOKEN = 'ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'; // استبدل بتوكنك
+const METADATA_URL = 'https://raw.githubusercontent.com/your-username/your-repo/main/data/metadata.json';
+const ACTION_API_URL = 'https://api.github.com/repos/your-username/your-repo/actions/workflows/compress_episode.yml/dispatches';
 
 // =============================================
 // دوال مساعدة
@@ -26,27 +26,14 @@ async function fetchData() {
 }
 
 // =============================================
-// إدارة التوكن (مع إمكانية التحديث)
-// =============================================
-function updateToken() {
-    const newToken = prompt('أدخل GitHub Personal Access Token (صلاحيات مطلوبة: repo + workflow):', GITHUB_TOKEN);
-    if (newToken && newToken.trim()) {
-        // نعيد تعريف المتغير (نستخدم var أو نعيد التهيئة)
-        // لكن الأفضل استخدام كائن لتغليف التوكن
-        return newToken.trim();
-    }
-    return null;
-}
-
-// =============================================
 // تشغيل الـ Action
 // =============================================
-async function triggerCompression(seriesName, episodeNum, token = GITHUB_TOKEN) {
+async function triggerCompression(seriesName, episodeNum) {
     try {
         const response = await fetch(ACTION_API_URL, {
             method: 'POST',
             headers: {
-                'Authorization': `token ${token}`,
+                'Authorization': `token ${GITHUB_TOKEN}`,
                 'Accept': 'application/vnd.github.v3+json',
                 'Content-Type': 'application/json'
             },
@@ -60,19 +47,7 @@ async function triggerCompression(seriesName, episodeNum, token = GITHUB_TOKEN) 
         });
 
         if (response.status === 204) {
-            return { success: true, token };
-        } else if (response.status === 401 || response.status === 403) {
-            // التوكن غير صالح أو لا يملك صلاحيات
-            const errorData = await response.json().catch(() => ({}));
-            const msg = errorData.message || 'صلاحيات غير كافية أو توكن غير صالح.';
-            alert(`❌ فشل المصادقة: ${msg}\nيرجى إدخال توكن جديد.`);
-            const newToken = updateToken();
-            if (newToken) {
-                // نعيد المحاولة مع التوكن الجديد
-                return await triggerCompression(seriesName, episodeNum, newToken);
-            } else {
-                return { success: false, error: 'لم يتم إدخال توكن' };
-            }
+            return { success: true };
         } else {
             const errorData = await response.json().catch(() => ({}));
             const msg = errorData.message || `خطأ ${response.status}`;
@@ -81,7 +56,7 @@ async function triggerCompression(seriesName, episodeNum, token = GITHUB_TOKEN) 
         }
     } catch (err) {
         console.error('❌ خطأ في الاتصال:', err);
-        alert('❌ حدث خطأ في الاتصال بـ GitHub. تحقق من اتصالك بالإنترنت.');
+        alert('❌ حدث خطأ في الاتصال بـ GitHub.');
         return { success: false, error: err.message };
     }
 }
@@ -102,12 +77,12 @@ async function checkForCompressed(btn, seriesName, episodeNum) {
             btn.classList.add('done');
             btn.onclick = () => playCompressedVideo(ep.compressed_url, `${seriesName} - حلقة ${episodeNum}`);
         } else {
-            // نعيد المحاولة بعد 30 ثانية
-            setTimeout(() => checkForCompressed(btn, seriesName, episodeNum), 30000);
+            // نعيد المحاولة بعد 15 ثانية
+            setTimeout(() => checkForCompressed(btn, seriesName, episodeNum), 15000);
         }
     } catch (err) {
         console.warn('⚠️ فشل التحقق:', err);
-        setTimeout(() => checkForCompressed(btn, seriesName, episodeNum), 30000);
+        setTimeout(() => checkForCompressed(btn, seriesName, episodeNum), 15000);
     }
 }
 
@@ -125,36 +100,44 @@ function playCompressedVideo(url, title) {
     player.play();
 }
 
+function closeVideo() {
+    const container = document.getElementById('videoContainer');
+    const player = document.getElementById('player');
+    player.pause();
+    player.src = '';
+    container.classList.remove('active');
+}
+
 // =============================================
 // معالجة الضغط عند الطلب
 // =============================================
 async function handleEpisodeClick(btn) {
     if (btn.classList.contains('loading')) return;
-    
+
     const seriesName = btn.dataset.seriesName;
     const episodeNum = parseInt(btn.dataset.episodeNum);
     const servers = JSON.parse(btn.dataset.servers);
-    
+
     // إذا كان هناك رابط مضغوط مسبقاً
     if (btn.dataset.compressedUrl) {
         playCompressedVideo(btn.dataset.compressedUrl, `${seriesName} - حلقة ${episodeNum}`);
         return;
     }
-    
+
     if (!servers || servers.length === 0) {
         alert('لا توجد سيرفرات لهذه الحلقة. انتظر التحديث التالي.');
         return;
     }
-    
+
     btn.textContent = '⏳ جاري طلب الضغط...';
     btn.classList.add('loading');
-    
+
     const result = await triggerCompression(seriesName, episodeNum);
     if (result.success) {
         btn.textContent = '⏳ قيد المعالجة...';
         alert(`✅ تم بدء ضغط الحلقة ${episodeNum}.\nقد يستغرق الضغط بضع دقائق. سيتم تحديث الزر تلقائياً عند الانتهاء.`);
-        // بدء التحقق الدوري بعد 30 ثانية
-        setTimeout(() => checkForCompressed(btn, seriesName, episodeNum), 30000);
+        // بدء التحقق الدوري
+        setTimeout(() => checkForCompressed(btn, seriesName, episodeNum), 10000);
     } else {
         btn.textContent = '❌ فشل الطلب';
         btn.classList.remove('loading');
@@ -168,7 +151,7 @@ async function renderHome() {
     const app = document.getElementById('app');
     const data = await fetchData();
     const seriesNames = Object.keys(data.series).filter(name => data.series[name].episodes?.length > 0);
-    
+
     if (seriesNames.length === 0) {
         app.innerHTML = '<div class="loading">📭 لا توجد مسلسلات حالياً.</div>';
         return;
@@ -179,7 +162,7 @@ async function renderHome() {
         const series = data.series[name];
         const cover = series.cover || '';
         const epCount = series.episodes.length;
-        
+
         const card = document.createElement('div');
         card.className = 'series-card';
         card.onclick = () => {
