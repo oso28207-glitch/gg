@@ -228,12 +228,19 @@ def extract_server_urls(episode_url):
     - وإلا، يتم البحث عن iframe و video و روابط مباشرة في الصفحة الحالية.
     """
     print(f"    🔗 جلب سيرفرات: {episode_url[:60]}...")
-    headers = {'User-Agent': 'Mozilla/5.0'}
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Referer': episode_url,
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'ar-EG,ar;q=0.9,en;q=0.8',
+        'Connection': 'keep-alive',
+    }
+    session = requests.Session()
     servers = []
 
     # 1. جلب الصفحة الحالية
     try:
-        resp = requests.get(episode_url, headers=headers, timeout=30)
+        resp = session.get(episode_url, headers=headers, timeout=30)
         resp.encoding = 'utf-8'
     except Exception as e:
         print(f"    ❌ فشل تحميل الصفحة: {e}")
@@ -249,17 +256,23 @@ def extract_server_urls(episode_url):
             full_see_url = urljoin(episode_url, see_url)
             print(f"    🔍 جلب صفحة المشاهدة: {full_see_url}")
             try:
-                see_resp = requests.get(full_see_url, headers=headers, timeout=30)
+                # إضافة Referer عند جلب صفحة المشاهدة
+                see_headers = headers.copy()
+                see_headers['Referer'] = episode_url
+                see_resp = session.get(full_see_url, headers=see_headers, timeout=30)
                 see_resp.encoding = 'utf-8'
                 see_soup = BeautifulSoup(see_resp.text, 'html.parser')
 
                 # البحث عن iframe داخل حاوية المشغل
-                iframe = see_soup.find('iframe', src=True)
-                if iframe:
-                    src = iframe.get('src')
-                    if src and src.startswith('http'):
-                        servers.append(src)
-                        print(f"    ✅ تم العثور على iframe: {src}")
+                # قد يكون داخل #player_viewer أو .player-viewer أو .frame-container
+                player_viewer = see_soup.find('div', id='player_viewer') or see_soup.find('div', class_='player-viewer')
+                if player_viewer:
+                    iframe = player_viewer.find('iframe', src=True)
+                    if iframe:
+                        src = iframe.get('src')
+                        if src and src.startswith('http'):
+                            servers.append(src)
+                            print(f"    ✅ تم العثور على iframe: {src}")
                 else:
                     # البحث عن أي iframe في الصفحة
                     for iframe in see_soup.find_all('iframe', src=True):
@@ -271,7 +284,39 @@ def extract_server_urls(episode_url):
             except Exception as e:
                 print(f"    ⚠️ فشل جلب صفحة المشاهدة: {e}")
 
-    # 3. إذا لم نجد iframe، نبحث في الصفحة الحالية (طريقة قديمة)
+    # 3. إذا لم نجد زر، نحاول البحث عن رابط /see/ مباشرة في الصفحة
+    if not servers:
+        for a in soup.find_all('a', href=True):
+            href = a.get('href')
+            if href and '/see/' in href:
+                full_see_url = urljoin(episode_url, href)
+                print(f"    🔍 جلب صفحة المشاهدة (من رابط مباشر): {full_see_url}")
+                try:
+                    see_headers = headers.copy()
+                    see_headers['Referer'] = episode_url
+                    see_resp = session.get(full_see_url, headers=see_headers, timeout=30)
+                    see_resp.encoding = 'utf-8'
+                    see_soup = BeautifulSoup(see_resp.text, 'html.parser')
+                    # البحث عن iframe
+                    player_viewer = see_soup.find('div', id='player_viewer') or see_soup.find('div', class_='player-viewer')
+                    if player_viewer:
+                        iframe = player_viewer.find('iframe', src=True)
+                        if iframe:
+                            src = iframe.get('src')
+                            if src and src.startswith('http'):
+                                servers.append(src)
+                                print(f"    ✅ تم العثور على iframe: {src}")
+                    else:
+                        for iframe in see_soup.find_all('iframe', src=True):
+                            src = iframe.get('src')
+                            if src and src.startswith('http'):
+                                servers.append(src)
+                                print(f"    ✅ تم العثور على iframe: {src}")
+                                break
+                except Exception as e:
+                    print(f"    ⚠️ فشل جلب صفحة المشاهدة: {e}")
+
+    # 4. إذا لم نجد iframe بعد كل هذا، نبحث في الصفحة الحالية (طريقة قديمة)
     if not servers:
         # البحث عن iframe
         for iframe in soup.find_all('iframe', src=True):
