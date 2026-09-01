@@ -14,6 +14,15 @@
     <main id="app">
         <div class="loading">⏳ جاري تحميل البيانات...</div>
     </main>
+    <div id="videoContainer" class="video-container">
+        <h3 id="videoTitle"></h3>
+        <div id="progressArea">
+            <progress id="compressProgress" value="0" max="100"></progress>
+            <span id="progressText">0%</span>
+        </div>
+        <video id="player" controls></video>
+        <button id="closeVideo" onclick="closeVideo()">✕ إغلاق</button>
+    </div>
     <script src="script.js"></script>
 </body>
 </html>
