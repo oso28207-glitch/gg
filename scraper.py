@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 سكربت جلب المسلسلات التركية المدبلجة من مصادر متعددة
+(معدل لدعم موقع قصة عشق 3ick.net)
 """
 
 import os
@@ -19,7 +20,8 @@ CONFIG_FILE = "config.json"
 if not os.path.exists(CONFIG_FILE):
     CONFIG = {
         "search_sources": [
-            "https://laaroza.mom/search.php?keywords=%D9%85%D8%AF%D8%A8%D9%84%D8%AC%D8%A9&video-id="
+            "https://laaroza.mom/search.php?keywords=%D9%85%D8%AF%D8%A8%D9%84%D8%AC%D8%A9&video-id=",
+            "https://aa.3ick.net/genre/series-mudablij-121/"  # مصدر جديد
         ],
         "max_series": 50
     }
@@ -30,9 +32,19 @@ else:
 SEARCH_SOURCES = CONFIG.get("search_sources", [])
 MAX_SERIES = CONFIG.get("max_series", 50)
 
-# ===== جلب قائمة الفيديوهات من مصدر =====
+# ===== دوال مساعدة =====
+def get_domain_from_url(url):
+    """استخراج النطاق الأساسي من الرابط لتحديد نوع الموقع"""
+    if 'laaroza.mom' in url:
+        return 'laaroza'
+    elif 'aa.3ick.net' in url or '3isk' in url:
+        return '3ick'
+    else:
+        return 'other'
+
+# ===== جلب قائمة المسلسلات من مصدر =====
 def get_all_series_from_source(url):
-    """استخراج قائمة الفيديوهات من صفحة بحث معينة"""
+    """استخراج قائمة المسلسلات من صفحة بحث أو تصنيف معينة"""
     print(f"🔍 جلب من: {url}")
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
@@ -46,20 +58,56 @@ def get_all_series_from_source(url):
 
     soup = BeautifulSoup(resp.text, 'html.parser')
     series_list = []
+    domain_type = get_domain_from_url(url)
 
-    # البحث عن روابط الفيديوهات (قد تختلف حسب الموقع)
-    for link in soup.find_all('a', href=True):
-        href = link['href']
-        if '/video/' in href or '/watch/' in href or '/embed/' in href:
-            title = link.get_text(strip=True) or link.get('title', '')
-            # تصفية للتركي المدبلج (يمكن تعديل الكلمات)
-            if title and any(k in title for k in ['مدبلج', 'مدبلجة', 'تركي', 'تركية']):
-                full_url = urljoin(url, href)
+    if domain_type == 'laaroza':
+        # منطق لاروزا (الحالي)
+        for link in soup.find_all('a', href=True):
+            href = link['href']
+            if '/video/' in href or '/watch/' in href or '/embed/' in href:
+                title = link.get_text(strip=True) or link.get('title', '')
+                if title and any(k in title for k in ['مدبلج', 'مدبلجة', 'تركي', 'تركية']):
+                    full_url = urljoin(url, href)
+                    series_list.append({
+                        'name': title.strip(),
+                        'url': full_url,
+                        'cover': ''
+                    })
+    elif domain_type == '3ick':
+        # منطق قصة عشق (aa.3ick.net)
+        # نبحث عن عناصر المسلسلات داخل .type_item_box
+        items = soup.find_all('li', class_='type_item_box')
+        for item in items:
+            link = item.find('a', class_='type_item')
+            if not link:
+                continue
+            href = link.get('href')
+            if not href:
+                continue
+            title_elem = link.find('div', class_='item_title')
+            title = title_elem.get_text(strip=True) if title_elem else ''
+            # استخراج الصورة (اختياري)
+            img = link.find('img', class_='item_img')
+            cover = img.get('src') if img else ''
+            if title and href:
                 series_list.append({
-                    'name': title.strip(),
-                    'url': full_url,
-                    'cover': ''  # قد تتوفر صور لاحقاً
+                    'name': title,
+                    'url': urljoin(url, href),
+                    'cover': cover
                 })
+    else:
+        # محاولة عامة (البحث عن روابط video)
+        for link in soup.find_all('a', href=True):
+            href = link['href']
+            if '/video/' in href or '/watch/' in href or '/embed/' in href:
+                title = link.get_text(strip=True) or link.get('title', '')
+                if title:
+                    full_url = urljoin(url, href)
+                    series_list.append({
+                        'name': title.strip(),
+                        'url': full_url,
+                        'cover': ''
+                    })
 
     # إزالة التكرارات
     seen = set()
@@ -69,12 +117,15 @@ def get_all_series_from_source(url):
             seen.add(s['url'])
             unique.append(s)
 
-    print(f"✅ تم العثور على {len(unique)} فيديو/مسلسل من هذا المصدر")
+    print(f"✅ تم العثور على {len(unique)} مسلسل/فيديو من هذا المصدر")
     return unique[:MAX_SERIES]
 
 # ===== جلب حلقات مسلسل =====
 def get_episodes_for_series(series_url):
-    """استخراج أرقام الحلقات من صفحة المسلسل"""
+    """
+    استخراج أرقام الحلقات وروابطها من صفحة المسلسل.
+    تُرجع قائمة من tuples: (episode_number, episode_url)
+    """
     print(f"  📂 جلب حلقات من: {series_url[:60]}...")
     headers = {'User-Agent': 'Mozilla/5.0'}
     try:
@@ -85,50 +136,93 @@ def get_episodes_for_series(series_url):
         return []
 
     soup = BeautifulSoup(resp.text, 'html.parser')
-    episodes = []
+    episodes = []  # قائمة (رقم, رابط)
 
-    # محاولة استخراج أرقام الحلقات من النص
-    text = soup.get_text()
-    pattern = r'(?:حلقة\s*رقم\s*|الحلقة\s*)(\d+)'
-    matches = re.findall(pattern, text)
-    for match in matches:
-        ep_num = int(match)
-        if ep_num not in episodes:
-            episodes.append(ep_num)
+    domain_type = get_domain_from_url(series_url)
 
-    # البحث عن روابط تشبه الحلقات
-    for link in soup.find_all('a', href=True):
-        href = link['href']
-        if '/video/' in href or '/watch/' in href:
-            match = re.search(r'-(\d+)/?$', href)
-            if match:
-                ep_num = int(match.group(1))
-                if ep_num not in episodes:
-                    episodes.append(ep_num)
-
-    episodes.sort()
-    print(f"    ✅ تم العثور على {len(episodes)} حلقة")
-    return episodes
-
-# ===== بناء بيانات الحلقات =====
-def build_episode_data(series_name, series_url, episode_numbers):
-    """بناء قائمة الحلقات مع روابط صفحاتها"""
-    episodes = []
-    for ep_num in episode_numbers:
-        # بناء رابط الحلقة (افتراضي)
-        if re.search(r'-(\d+)/?$', series_url):
-            new_url = re.sub(r'-(\d+)/?$', f'-{ep_num}/', series_url)
+    if domain_type == '3ick':
+        # نبحث عن روابط الحلقات داخل .season-eps
+        eps_container = soup.find('div', class_='season-eps')
+        if eps_container:
+            for a in eps_container.find_all('a', class_='ep-num'):
+                href = a.get('href')
+                if not href:
+                    continue
+                # استخراج رقم الحلقة من data-ep-num أو من النص
+                ep_num = a.get('data-ep-num')
+                if not ep_num:
+                    # محاولة استخراج من النص
+                    text = a.get_text(strip=True)
+                    match = re.search(r'(\d+)', text)
+                    if match:
+                        ep_num = match.group(1)
+                if ep_num:
+                    try:
+                        ep_num = int(ep_num)
+                    except:
+                        continue
+                    full_url = urljoin(series_url, href)
+                    episodes.append((ep_num, full_url))
         else:
-            base = series_url.rstrip('/')
-            new_url = f"{base}-{ep_num}/"
+            # محاولة البحث عن أي روابط تحتوي على /watch/episodes/
+            for a in soup.find_all('a', href=True):
+                href = a['href']
+                if '/watch/episodes/' in href:
+                    ep_num = a.get('data-ep-num') or re.search(r'episode-(\d+)', href)
+                    if ep_num:
+                        try:
+                            if isinstance(ep_num, re.Match):
+                                ep_num = int(ep_num.group(1))
+                            else:
+                                ep_num = int(ep_num)
+                        except:
+                            continue
+                        full_url = urljoin(series_url, href)
+                        episodes.append((ep_num, full_url))
+    else:
+        # المنطق القديم (لاروزا وغيره) - استخراج الأرقام وبناء الروابط
+        # (نتركه كما هو لكن مع إمكانية إضافة روابط حقيقية إن وجدت)
+        # البحث عن أرقام الحلقات من النص
+        text = soup.get_text()
+        pattern = r'(?:حلقة\s*رقم\s*|الحلقة\s*)(\d+)'
+        matches = re.findall(pattern, text)
+        for match in matches:
+            ep_num = int(match)
+            # بناء رابط (كما كان)
+            if re.search(r'-(\d+)/?$', series_url):
+                new_url = re.sub(r'-(\d+)/?$', f'-{ep_num}/', series_url)
+            else:
+                base = series_url.rstrip('/')
+                new_url = f"{base}-{ep_num}/"
+            episodes.append((ep_num, new_url))
+
+    # إزالة التكرارات حسب الرقم
+    seen_nums = set()
+    unique_eps = []
+    for ep_num, url in episodes:
+        if ep_num not in seen_nums:
+            seen_nums.add(ep_num)
+            unique_eps.append((ep_num, url))
+
+    unique_eps.sort(key=lambda x: x[0])
+    print(f"    ✅ تم العثور على {len(unique_eps)} حلقة")
+    return unique_eps
+
+# ===== بناء بيانات الحلقات (باستخدام الروابط المستخرجة) =====
+def build_episode_data(series_name, episodes_with_urls):
+    """
+    episodes_with_urls: list of (episode_number, episode_url)
+    """
+    episodes = []
+    for ep_num, ep_url in episodes_with_urls:
         episodes.append({
             'episode': ep_num,
-            'url': new_url,
+            'url': ep_url,
             'date_added': datetime.now().isoformat()
         })
     return episodes
 
-# ===== استخراج سيرفرات المشاهدة =====
+# ===== استخراج سيرفرات المشاهدة (معدل قليلاً) =====
 def extract_server_urls(episode_url):
     """استخراج روابط السيرفرات من صفحة الحلقة"""
     print(f"    🔗 جلب سيرفرات: {episode_url[:60]}...")
@@ -136,20 +230,25 @@ def extract_server_urls(episode_url):
     try:
         resp = requests.get(episode_url, headers=headers, timeout=30)
         resp.encoding = 'utf-8'
-    except:
+    except Exception as e:
+        print(f"    ❌ فشل تحميل الصفحة: {e}")
         return []
 
     soup = BeautifulSoup(resp.text, 'html.parser')
     servers = []
 
-    # البحث عن iframe (المشغل)
+    # 1. البحث عن iframe (المشغل)
     iframes = soup.find_all('iframe')
     for iframe in iframes:
         src = iframe.get('src')
         if src and src.startswith('http'):
             servers.append(src)
+        # قد يكون الرابط داخل data-src
+        data_src = iframe.get('data-src')
+        if data_src and data_src.startswith('http'):
+            servers.append(data_src)
 
-    # البحث عن عنصر video مباشر
+    # 2. البحث عن عنصر video مباشر
     videos = soup.find_all('video')
     for video in videos:
         src = video.get('src')
@@ -161,10 +260,13 @@ def extract_server_urls(episode_url):
             if src and src.startswith('http'):
                 servers.append(src)
 
-    # البحث عن روابط في النص
+    # 3. البحث عن روابط في النص (mp4, m3u8, webm)
     text = soup.get_text()
     matches = re.findall(r'(https?://[^"\'\s]+\.(?:mp4|m3u8|webm)[^"\'\s]*)', text)
     servers.extend(matches)
+
+    # 4. (خاص بقصة عشق) قد يكون السيرفر مخبأ في عنصر li بقائمة السيرفرات
+    #    ولكن السيرفر الفعلي هو iframe أعلاه، لذا نكتفي بما وجدناه.
 
     # إزالة التكرارات
     servers = list(dict.fromkeys(servers))
@@ -190,11 +292,10 @@ def main():
     for source in SEARCH_SOURCES:
         series_from_source = get_all_series_from_source(source)
         for s in series_from_source:
-            # تجنب التكرار بناءً على الاسم أو الرابط
             if not any(existing['url'] == s['url'] for existing in all_series):
                 all_series.append(s)
 
-    # الآن نقوم بمعالجة كل مسلسل
+    # معالجة كل مسلسل
     for series in all_series:
         name = series['name']
         url = series['url']
@@ -207,13 +308,19 @@ def main():
             all_data["series"][name] = {"episodes": [], "cover": cover}
 
         all_data["series"][name]["cover"] = cover
-        episode_numbers = get_episodes_for_series(url)
 
-        new_episodes = [ep for ep in episode_numbers if ep not in existing_episodes]
+        # جلب الحلقات مع روابطها
+        episodes_with_urls = get_episodes_for_series(url)
+        if not episodes_with_urls:
+            print(f"  ⚠️ لم يتم العثور على حلقات لـ {name}")
+            continue
+
+        # تصفية الحلقات الجديدة (غير الموجودة)
+        new_episodes = [(ep_num, ep_url) for ep_num, ep_url in episodes_with_urls if ep_num not in existing_episodes]
 
         if new_episodes:
             print(f"  🆕 إضافة {len(new_episodes)} حلقة جديدة لـ {name}")
-            new_ep_data = build_episode_data(name, url, new_episodes)
+            new_ep_data = build_episode_data(name, new_episodes)
             # جلب السيرفرات لكل حلقة جديدة
             for ep in new_ep_data:
                 servers = extract_server_urls(ep['url'])
