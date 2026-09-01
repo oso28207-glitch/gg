@@ -1,8 +1,8 @@
-name: Daily Metadata Update
+name: تحديث الميتاداتا تلقائياً
 
 on:
   schedule:
-    - cron: '0 */6 * * *'
+    - cron: '0 */6 * * *'   # كل 6 ساعات
   workflow_dispatch:
 
 permissions:
@@ -12,15 +12,15 @@ jobs:
   update:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: استنساخ المستودع
         uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: إعداد Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      - name: Install Chrome and ChromeDriver
+      - name: تثبيت Chrome و ChromeDriver (للسيلينيوم إن لزم)
         run: |
           sudo apt-get update
           sudo apt-get install -y wget unzip
@@ -34,13 +34,13 @@ jobs:
           sudo mv chromedriver-linux64/chromedriver /usr/local/bin/
           sudo chmod +x /usr/local/bin/chromedriver
 
-      - name: Install Python dependencies
+      - name: تثبيت التبعيات
         run: pip install -r requirements.txt
 
-      - name: Run scraper
+      - name: تشغيل سكربت الجلب
         run: python scraper.py
 
-      - name: Commit and push changes
+      - name: رفع التغييرات إلى المستودع
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
