@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-ضغط حلقة من موقع لاروزا
+ضغط حلقة عند الطلب
 """
+
 import os
 import sys
 import json
 import time
-import re
-import requests
 import subprocess
+import requests
 from github import Github, Auth
 import yt_dlp
+import certifi
 
 # ===== إعداد SSL =====
-import certifi
 os.environ['SSL_CERT_FILE'] = certifi.where()
 os.environ['REQUESTS_CA_BUNDLE'] = certifi.where()
 
@@ -106,7 +107,7 @@ def download_with_ytdlp(url, output_path):
         print(f"⚠️ yt-dlp فشل: {e}")
         return False
 
-# ===== دالة التحميل والضغط =====
+# ===== التحميل والضغط =====
 def download_and_compress(episode_data, output_path):
     servers = episode_data.get("servers", [])
     if not servers:
@@ -114,11 +115,10 @@ def download_and_compress(episode_data, output_path):
         return False
 
     temp_file = "temp_input.mp4"
-    
+
     for idx, server_url in enumerate(servers, 1):
         print(f"🔄 محاولة السيرفر {idx}: {server_url[:80]}...")
-        
-        # 1. إذا كان رابطاً مباشراً
+
         if is_direct_video(server_url):
             print("  📥 رابط مباشر، نحاول التحميل...")
             if download_direct(server_url, temp_file):
@@ -129,17 +129,16 @@ def download_and_compress(episode_data, output_path):
                 if download_with_ytdlp(server_url, temp_file):
                     print("✅ تم التحميل بنجاح (yt-dlp)")
                     break
-        
-        # 2. استخدام yt-dlp كحل عام
-        print("  🔄 محاولة yt-dlp...")
-        if download_with_ytdlp(server_url, temp_file):
-            print("✅ تم التحميل بنجاح (yt-dlp)")
-            break
+        else:
+            print("  🔄 محاولة yt-dlp...")
+            if download_with_ytdlp(server_url, temp_file):
+                print("✅ تم التحميل بنجاح (yt-dlp)")
+                break
     else:
         print("❌ فشل التحميل من جميع السيرفرات")
         return False
 
-    # ضغط الفيديو
+    # ضغط الفيديو إلى 240p
     print("🔄 جاري الضغط إلى 240p...")
     cmd = [
         'ffmpeg', '-i', temp_file,
@@ -165,15 +164,15 @@ def upload_to_release(file_path):
         release = repo.get_release(RELEASE_TAG)
     except:
         release = repo.create_git_release(RELEASE_TAG, "فيديوهات مضغوطة", "فيديوهات مضغوطة إلى 240p")
-    
+
     safe_name = SERIES_NAME.replace(' ', '_').replace('/', '_')
     file_name = f"{safe_name}_E{EPISODE_NUM:02d}_240p.mp4"
-    
+
     for asset in release.get_assets():
         if asset.name == file_name:
             asset.delete_asset()
             break
-    
+
     with open(file_path, "rb") as f:
         asset = release.upload_asset_from_memory(
             f.read(),
@@ -185,38 +184,38 @@ def upload_to_release(file_path):
 # ===== الدالة الرئيسية =====
 def main():
     print(f"🚀 بدء ضغط الحلقة: {SERIES_NAME} - {EPISODE_NUM}")
-    
+
     data = load_metadata()
     series = data.get("series", {}).get(SERIES_NAME)
     if not series:
         print(f"❌ المسلسل '{SERIES_NAME}' غير موجود")
         sys.exit(1)
-    
+
     episode_data = None
     for ep in series.get("episodes", []):
         if ep.get("episode") == EPISODE_NUM:
             episode_data = ep
             break
-    
+
     if not episode_data:
         print(f"❌ الحلقة {EPISODE_NUM} غير موجودة")
         sys.exit(1)
-    
+
     output_file = f"compressed_{int(time.time())}.mp4"
-    
+
     if not download_and_compress(episode_data, output_file):
         print("❌ فشل تحميل وضغط الفيديو")
         sys.exit(1)
-    
+
     print("⬆️ رفع الملف إلى GitHub Releases...")
     download_url = upload_to_release(output_file)
     print(f"✅ رابط التحميل: {download_url}")
-    
+
     episode_data["compressed_url"] = download_url
     episode_data["compressed_date"] = time.strftime("%Y-%m-%d %H:%M:%S")
     save_metadata(data)
     print("✅ تم تحديث الميتاداتا")
-    
+
     os.remove(output_file)
     print("🎉 انتهى الضغط بنجاح")
 
