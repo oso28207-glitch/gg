@@ -1,5 +1,4 @@
 {
-    "series_page": "https://lodynet.watch/dubbed-turkish-series-g/",
-    "max_series": 50,
-    "max_new_episodes_per_series": 5
+    "search_url": "https://laaroza.mom/search.php?keywords=%D9%85%D8%AF%D8%A8%D9%84%D8%AC%D8%A9&video-id=",
+    "max_series": 100
 }
