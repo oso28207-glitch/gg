@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 سكربت جلب المسلسلات التركية المدبلجة من مصادر متعددة
-(معدل لدعم موقع قصة عشق 3ick.net)
+(معدل لدعم موقع قصة عشق 3ick.net مع استخراج روابط السيرفرات من صفحة /see/)
 """
 
 import os
@@ -21,7 +21,7 @@ if not os.path.exists(CONFIG_FILE):
     CONFIG = {
         "search_sources": [
             "https://laaroza.mom/search.php?keywords=%D9%85%D8%AF%D8%A8%D9%84%D8%AC%D8%A9&video-id=",
-            "https://aa.3ick.net/genre/series-mudablij-121/"  # مصدر جديد
+            "https://aa.3ick.net/genre/series-mudablij-121/"
         ],
         "max_series": 50
     }
@@ -91,7 +91,7 @@ def get_all_series_from_source(url):
             cover = img.get('src') if img else ''
             if title and href:
                 series_list.append({
-                    'name': title,
+                    'name': title.strip(),
                     'url': urljoin(url, href),
                     'cover': cover
                 })
@@ -181,8 +181,6 @@ def get_episodes_for_series(series_url):
                         episodes.append((ep_num, full_url))
     else:
         # المنطق القديم (لاروزا وغيره) - استخراج الأرقام وبناء الروابط
-        # (نتركه كما هو لكن مع إمكانية إضافة روابط حقيقية إن وجدت)
-        # البحث عن أرقام الحلقات من النص
         text = soup.get_text()
         pattern = r'(?:حلقة\s*رقم\s*|الحلقة\s*)(\d+)'
         matches = re.findall(pattern, text)
@@ -222,11 +220,18 @@ def build_episode_data(series_name, episodes_with_urls):
         })
     return episodes
 
-# ===== استخراج سيرفرات المشاهدة (معدل قليلاً) =====
+# ===== استخراج سيرفرات المشاهدة (معدل لدعم قصة عشق) =====
 def extract_server_urls(episode_url):
-    """استخراج روابط السيرفرات من صفحة الحلقة"""
+    """
+    استخراج روابط السيرفرات من صفحة الحلقة.
+    - إذا كان الموقع من نوع قصة عشق، يتم جلب صفحة /see/ واستخراج iframe.
+    - وإلا، يتم البحث عن iframe و video و روابط مباشرة في الصفحة الحالية.
+    """
     print(f"    🔗 جلب سيرفرات: {episode_url[:60]}...")
     headers = {'User-Agent': 'Mozilla/5.0'}
+    servers = []
+
+    # 1. جلب الصفحة الحالية
     try:
         resp = requests.get(episode_url, headers=headers, timeout=30)
         resp.encoding = 'utf-8'
@@ -235,38 +240,59 @@ def extract_server_urls(episode_url):
         return []
 
     soup = BeautifulSoup(resp.text, 'html.parser')
-    servers = []
 
-    # 1. البحث عن iframe (المشغل)
-    iframes = soup.find_all('iframe')
-    for iframe in iframes:
-        src = iframe.get('src')
-        if src and src.startswith('http'):
-            servers.append(src)
-        # قد يكون الرابط داخل data-src
-        data_src = iframe.get('data-src')
-        if data_src and data_src.startswith('http'):
-            servers.append(data_src)
+    # 2. البحث عن زر "مشاهدة الحلقة" (خاص بموقع قصة عشق)
+    watch_btn = soup.find('a', class_='single-watch-btn')
+    if watch_btn:
+        see_url = watch_btn.get('href')
+        if see_url and '/see/' in see_url:
+            full_see_url = urljoin(episode_url, see_url)
+            print(f"    🔍 جلب صفحة المشاهدة: {full_see_url}")
+            try:
+                see_resp = requests.get(full_see_url, headers=headers, timeout=30)
+                see_resp.encoding = 'utf-8'
+                see_soup = BeautifulSoup(see_resp.text, 'html.parser')
 
-    # 2. البحث عن عنصر video مباشر
-    videos = soup.find_all('video')
-    for video in videos:
-        src = video.get('src')
-        if src and src.startswith('http'):
-            servers.append(src)
-        sources = video.find_all('source')
-        for source in sources:
-            src = source.get('src')
+                # البحث عن iframe داخل حاوية المشغل
+                iframe = see_soup.find('iframe', src=True)
+                if iframe:
+                    src = iframe.get('src')
+                    if src and src.startswith('http'):
+                        servers.append(src)
+                        print(f"    ✅ تم العثور على iframe: {src}")
+                else:
+                    # البحث عن أي iframe في الصفحة
+                    for iframe in see_soup.find_all('iframe', src=True):
+                        src = iframe.get('src')
+                        if src and src.startswith('http'):
+                            servers.append(src)
+                            print(f"    ✅ تم العثور على iframe: {src}")
+                            break
+            except Exception as e:
+                print(f"    ⚠️ فشل جلب صفحة المشاهدة: {e}")
+
+    # 3. إذا لم نجد iframe، نبحث في الصفحة الحالية (طريقة قديمة)
+    if not servers:
+        # البحث عن iframe
+        for iframe in soup.find_all('iframe', src=True):
+            src = iframe.get('src')
             if src and src.startswith('http'):
                 servers.append(src)
 
-    # 3. البحث عن روابط في النص (mp4, m3u8, webm)
-    text = soup.get_text()
-    matches = re.findall(r'(https?://[^"\'\s]+\.(?:mp4|m3u8|webm)[^"\'\s]*)', text)
-    servers.extend(matches)
+        # البحث عن عناصر video
+        for video in soup.find_all('video'):
+            src = video.get('src')
+            if src and src.startswith('http'):
+                servers.append(src)
+            for source in video.find_all('source'):
+                src = source.get('src')
+                if src and src.startswith('http'):
+                    servers.append(src)
 
-    # 4. (خاص بقصة عشق) قد يكون السيرفر مخبأ في عنصر li بقائمة السيرفرات
-    #    ولكن السيرفر الفعلي هو iframe أعلاه، لذا نكتفي بما وجدناه.
+        # البحث عن روابط مباشرة في النص
+        text = soup.get_text()
+        matches = re.findall(r'(https?://[^"\'\s]+\.(?:mp4|m3u8|webm)[^"\'\s]*)', text)
+        servers.extend(matches)
 
     # إزالة التكرارات
     servers = list(dict.fromkeys(servers))
