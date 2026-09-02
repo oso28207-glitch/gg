@@ -1,10 +1,30 @@
 // =============================================
 // إعدادات التطبيق
 // =============================================
-// ⚠️ تنبيه: هذا التوكن مخصص للتجربة فقط. في الإنتاج استخدم طريقة آمنة.
-const GITHUB_TOKEN = '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'; // استبدل بتوكنك
 const METADATA_URL = 'https://raw.githubusercontent.com/oso28207-glitch/gg/main/data/metadata.json';
 const ACTION_API_URL = 'https://api.github.com/repos/oso28207-glitch/gg/actions/workflows/compress_episode.yml/dispatches';
+
+// =============================================
+// إدارة التوكن (يُطلب من المستخدم و يُخزن محلياً)
+// =============================================
+function getToken() {
+    let token = localStorage.getItem('github_token');
+    if (!token) {
+        token = prompt('🔑 أدخل GitHub Personal Access Token الخاص بك:\n(الصلاحيات المطلوبة: repo + workflow)');
+        if (token && token.trim()) {
+            localStorage.setItem('github_token', token.trim());
+            return token.trim();
+        }
+        return null;
+    }
+    return token;
+}
+
+function clearToken() {
+    localStorage.removeItem('github_token');
+    alert('✅ تم حذف التوكن. قم بتحديث الصفحة لإدخال توكن جديد.');
+    location.reload();
+}
 
 // =============================================
 // دوال مساعدة
@@ -29,11 +49,17 @@ async function fetchData() {
 // تشغيل الـ Action
 // =============================================
 async function triggerCompression(seriesName, episodeNum) {
+    const token = getToken();
+    if (!token) {
+        alert('❌ لا يوجد توكن صالح. سيُطلب منك إدخاله.');
+        return { success: false, error: 'No token' };
+    }
+
     try {
         const response = await fetch(ACTION_API_URL, {
             method: 'POST',
             headers: {
-                'Authorization': `token ${GITHUB_TOKEN}`,
+                'Authorization': `token ${token}`,
                 'Accept': 'application/vnd.github.v3+json',
                 'Content-Type': 'application/json'
             },
@@ -48,6 +74,11 @@ async function triggerCompression(seriesName, episodeNum) {
 
         if (response.status === 204) {
             return { success: true };
+        } else if (response.status === 401) {
+            // التوكن غير صالح أو منتهي
+            localStorage.removeItem('github_token');
+            alert('❌ التوكن غير صالح أو منتهي الصلاحية. سيُطلب منك إدخال توكن جديد.');
+            return { success: false, error: 'Invalid token' };
         } else {
             const errorData = await response.json().catch(() => ({}));
             const msg = errorData.message || `خطأ ${response.status}`;
@@ -77,7 +108,6 @@ async function checkForCompressed(btn, seriesName, episodeNum) {
             btn.classList.add('done');
             btn.onclick = () => playCompressedVideo(ep.compressed_url, `${seriesName} - حلقة ${episodeNum}`);
         } else {
-            // نعيد المحاولة بعد 15 ثانية
             setTimeout(() => checkForCompressed(btn, seriesName, episodeNum), 15000);
         }
     } catch (err) {
@@ -118,7 +148,6 @@ async function handleEpisodeClick(btn) {
     const episodeNum = parseInt(btn.dataset.episodeNum);
     const servers = JSON.parse(btn.dataset.servers);
 
-    // إذا كان هناك رابط مضغوط مسبقاً
     if (btn.dataset.compressedUrl) {
         playCompressedVideo(btn.dataset.compressedUrl, `${seriesName} - حلقة ${episodeNum}`);
         return;
@@ -136,7 +165,6 @@ async function handleEpisodeClick(btn) {
     if (result.success) {
         btn.textContent = '⏳ قيد المعالجة...';
         alert(`✅ تم بدء ضغط الحلقة ${episodeNum}.\nقد يستغرق الضغط بضع دقائق. سيتم تحديث الزر تلقائياً عند الانتهاء.`);
-        // بدء التحقق الدوري
         setTimeout(() => checkForCompressed(btn, seriesName, episodeNum), 10000);
     } else {
         btn.textContent = '❌ فشل الطلب';
@@ -200,6 +228,18 @@ async function renderSeries() {
     const app = document.getElementById('app');
     app.innerHTML = '';
 
+    // إضافة زر "تغيير التوكن" في أعلى الصفحة
+    const tokenBtn = document.createElement('button');
+    tokenBtn.textContent = '🔑 تغيير التوكن';
+    tokenBtn.className = 'episode-btn';
+    tokenBtn.style.cssText = 'background:#555; margin-bottom:20px; width:auto; padding:10px 20px;';
+    tokenBtn.onclick = () => {
+        localStorage.removeItem('github_token');
+        alert('✅ تم حذف التوكن. سيُطلب منك إدخال توكن جديد عند أول طلب ضغط.');
+        location.reload();
+    };
+    app.appendChild(tokenBtn);
+
     const episodes = [...series.episodes].sort((a, b) => b.episode - a.episode);
     const grid = document.createElement('div');
     grid.className = 'episode-grid';
@@ -223,6 +263,25 @@ async function renderSeries() {
     }
     app.appendChild(grid);
 }
+
+// =============================================
+// إضافة زر "تغيير التوكن" في الصفحة الرئيسية أيضاً
+// =============================================
+document.addEventListener('DOMContentLoaded', () => {
+    // نضيف زر تغيير التوكن في الأعلى (يمكن تخصيص مكانه)
+    const header = document.querySelector('header');
+    if (header) {
+        const tokenBtn = document.createElement('button');
+        tokenBtn.textContent = '🔑 تغيير التوكن';
+        tokenBtn.style.cssText = 'background:#555; color:#fff; border:none; padding:8px 16px; border-radius:5px; cursor:pointer; margin-right:10px;';
+        tokenBtn.onclick = () => {
+            localStorage.removeItem('github_token');
+            alert('✅ تم حذف التوكن. سيُطلب منك إدخال توكن جديد عند أول طلب ضغط.');
+            location.reload();
+        };
+        header.appendChild(tokenBtn);
+    }
+});
 
 // =============================================
 // تحديد الصفحة الحالية
