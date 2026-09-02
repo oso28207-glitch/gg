@@ -27,8 +27,10 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: تثبيت ffmpeg
-        run: sudo apt-get install -y ffmpeg
+      - name: تحديث قائمة الحزم وتثبيت ffmpeg
+        run: |
+          sudo apt-get update --fix-missing
+          sudo apt-get install -y ffmpeg
 
       - name: تثبيت التبعيات
         run: pip install -r requirements.txt
