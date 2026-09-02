@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-ضغط حلقة عند الطلب
+ضغط حلقة عند الطلب (معدل لدعم yt-dlp مع روابط embed و see)
 """
 
 import os
@@ -13,12 +13,11 @@ import requests
 from github import Github, Auth
 import yt_dlp
 import certifi
+from bs4 import BeautifulSoup
 
-# ===== إعداد SSL =====
 os.environ['SSL_CERT_FILE'] = certifi.where()
 os.environ['REQUESTS_CA_BUNDLE'] = certifi.where()
 
-# ===== قراءة المتغيرات =====
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
 if not GITHUB_TOKEN:
     print("❌ GITHUB_TOKEN غير موجود")
@@ -39,12 +38,10 @@ if not SERIES_NAME or not EPISODE_NUM:
 EPISODE_NUM = int(EPISODE_NUM)
 RELEASE_TAG = "compressed-episodes"
 
-# ===== GitHub =====
 auth = Auth.Token(GITHUB_TOKEN)
 g = Github(auth=auth)
 repo = g.get_repo(REPO_NAME)
 
-# ===== دوال الميتاداتا =====
 def load_metadata():
     try:
         contents = repo.get_contents("data/metadata.json")
@@ -68,11 +65,9 @@ def save_metadata(data):
             json.dumps(data, ensure_ascii=False, indent=2)
         )
 
-# ===== التحقق من الرابط المباشر =====
 def is_direct_video(url):
     return any(ext in url.lower() for ext in ['.mp4', '.m3u8', '.webm'])
 
-# ===== تحميل مباشر =====
 def download_direct(url, output_path):
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
@@ -88,16 +83,50 @@ def download_direct(url, output_path):
     except:
         return False
 
-# ===== تحميل باستخدام yt-dlp =====
+def extract_iframe_from_page(url):
+    """استخراج رابط iframe من صفحة الحلقة"""
+    try:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Referer': 'https://aa.3ick.net/',
+        }
+        resp = requests.get(url, headers=headers, timeout=30)
+        resp.encoding = 'utf-8'
+        soup = BeautifulSoup(resp.text, 'html.parser')
+        # البحث عن iframe داخل #player_viewer أو .player-viewer
+        player_viewer = soup.find('div', id='player_viewer') or soup.find('div', class_='player-viewer')
+        if player_viewer:
+            iframe = player_viewer.find('iframe', src=True)
+            if iframe:
+                src = iframe.get('src')
+                if src and src.startswith('http'):
+                    return src
+        # البحث عن أي iframe في الصفحة
+        for iframe in soup.find_all('iframe', src=True):
+            src = iframe.get('src')
+            if src and src.startswith('http'):
+                return src
+    except Exception as e:
+        print(f"⚠️ فشل استخراج iframe: {e}")
+    return None
+
 def download_with_ytdlp(url, output_path):
     try:
         ydl_opts = {
             'format': 'best[height<=720]/best',
             'outtmpl': output_path,
             'quiet': False,
-            'retries': 5,
+            'retries': 10,
             'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Referer': 'https://aa.3ick.net/',
+            },
+            'no_check_certificate': True,
+            'ignoreerrors': True,
+            'extractor_args': {
+                'generic': {
+                    'no_playlist': True,
+                }
             }
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -107,7 +136,6 @@ def download_with_ytdlp(url, output_path):
         print(f"⚠️ yt-dlp فشل: {e}")
         return False
 
-# ===== التحميل والضغط =====
 def download_and_compress(episode_data, output_path):
     servers = episode_data.get("servers", [])
     if not servers:
@@ -116,9 +144,49 @@ def download_and_compress(episode_data, output_path):
 
     temp_file = "temp_input.mp4"
 
+    # محاولة أولى: استخراج iframe من رابط الحلقة نفسه (إذا كان من نوع /watch/episodes/)
+    episode_url = episode_data.get("url")
+    if episode_url and '/watch/episodes/' in episode_url:
+        print(f"🔍 محاولة استخراج iframe من: {episode_url}")
+        iframe_url = extract_iframe_from_page(episode_url)
+        if iframe_url:
+            print(f"✅ تم العثور على iframe: {iframe_url}")
+            # نضيف iframe_url كسيرفر إضافي في بداية القائمة
+            servers.insert(0, iframe_url)
+
+    # محاولة أيضاً استخدام رابط /see/ إذا كان موجوداً
+    see_url = episode_url.replace('/watch/episodes/', '/watch/episodes/') + 'see/' if episode_url else None
+    if see_url:
+        print(f"🔍 محاولة استخراج iframe من صفحة المشاهدة: {see_url}")
+        iframe_from_see = extract_iframe_from_page(see_url)
+        if iframe_from_see:
+            print(f"✅ تم العثور على iframe في صفحة المشاهدة: {iframe_from_see}")
+            servers.insert(0, iframe_from_see)
+
+    # محاولة إنشاء رابط التضمين مباشرة (embed) إذا كان الرابط من نوع /watch/episodes/
+    if episode_url and '/watch/episodes/' in episode_url:
+        # استخراج معرف الحلقة من الرابط (الجزء الأخير)
+        parts = episode_url.rstrip('/').split('/')
+        episode_id = parts[-1]  # مثل 'serie-racon-ailem-icin-mudblij-season-1-episode-11'
+        # نحاول بناء رابط embed (قد يختلف)
+        embed_url = f"https://aa.3ick.net/embed/1/{episode_id}/2/"
+        print(f"🔍 محاولة استخدام رابط embed: {embed_url}")
+        servers.insert(0, embed_url)
+
     for idx, server_url in enumerate(servers, 1):
         print(f"🔄 محاولة السيرفر {idx}: {server_url[:80]}...")
 
+        # إذا كان الرابط يحتوي على /embed/ أو /see/ أو mwdy.cc، استخدم yt-dlp
+        if '/embed/' in server_url or '/see/' in server_url or 'mwdy.cc' in server_url:
+            print("  📥 رابط تضمين أو صفحة مشاهدة، نستخدم yt-dlp...")
+            if download_with_ytdlp(server_url, temp_file):
+                print("✅ تم التحميل بنجاح (yt-dlp)")
+                break
+            else:
+                print("  ⚠️ فشل التحميل باستخدام yt-dlp")
+                continue
+
+        # إذا كان رابطاً مباشراً
         if is_direct_video(server_url):
             print("  📥 رابط مباشر، نحاول التحميل...")
             if download_direct(server_url, temp_file):
@@ -138,7 +206,6 @@ def download_and_compress(episode_data, output_path):
         print("❌ فشل التحميل من جميع السيرفرات")
         return False
 
-    # ضغط الفيديو إلى 240p
     print("🔄 جاري الضغط إلى 240p...")
     cmd = [
         'ffmpeg', '-i', temp_file,
@@ -158,7 +225,6 @@ def download_and_compress(episode_data, output_path):
             os.remove(temp_file)
         return False
 
-# ===== رفع الملف =====
 def upload_to_release(file_path):
     try:
         release = repo.get_release(RELEASE_TAG)
@@ -181,7 +247,6 @@ def upload_to_release(file_path):
         )
     return asset.browser_download_url
 
-# ===== الدالة الرئيسية =====
 def main():
     print(f"🚀 بدء ضغط الحلقة: {SERIES_NAME} - {EPISODE_NUM}")
 
