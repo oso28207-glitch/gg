@@ -3677,6 +3677,14 @@
           "servers": [
             "https://aa.3ick.net/watch/episodes/serie-omurluk-soz-mudblij-season-1-episode-60/"
           ]
+        },
+        {
+          "episode": 61,
+          "url": "https://aa.3ick.net/watch/episodes/serie-omurluk-soz-mudblij-season-1-episode-61/",
+          "date_added": "2026-09-03T02:02:40.404578",
+          "servers": [
+            "https://aa.3ick.net/watch/episodes/serie-omurluk-soz-mudblij-season-1-episode-61/"
+          ]
         }
       ],
       "cover": "https://aa.3ick.net/wp-content/themes/3skneew-vid/assets/img/no/dt_poster.png",
@@ -22993,5 +23001,5 @@
       "url": "https://aa.3ick.net/watch/tvshows/serie-siyah-kalp-mudblij-21aug6/"
     }
   },
-  "last_update": "2026-09-02T20:17:52.636738"
+  "last_update": "2026-09-03T02:03:12.230188"
 }
