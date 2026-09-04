@@ -8617,6 +8617,30 @@
           "servers": [
             "https://aa.3ick.net/watch/episodes/serie-doganin-kanunu-mudblj-season-1-episode-32/"
           ]
+        },
+        {
+          "episode": 33,
+          "url": "https://aa.3ick.net/watch/episodes/serie-doganin-kanunu-mudblj-season-1-episode-33/",
+          "date_added": "2026-09-04T15:26:49.645076",
+          "servers": [
+            "https://aa.3ick.net/watch/episodes/serie-doganin-kanunu-mudblj-season-1-episode-33/"
+          ]
+        },
+        {
+          "episode": 34,
+          "url": "https://aa.3ick.net/watch/episodes/serie-doganin-kanunu-mudblj-season-1-episode-34/",
+          "date_added": "2026-09-04T15:26:49.645083",
+          "servers": [
+            "https://aa.3ick.net/watch/episodes/serie-doganin-kanunu-mudblj-season-1-episode-34/"
+          ]
+        },
+        {
+          "episode": 35,
+          "url": "https://aa.3ick.net/watch/episodes/serie-doganin-kanunu-mudblj-season-1-episode-35/",
+          "date_added": "2026-09-04T15:26:49.645084",
+          "servers": [
+            "https://aa.3ick.net/watch/episodes/serie-doganin-kanunu-mudblj-season-1-episode-35/"
+          ]
         }
       ],
       "cover": "https://aa.3ick.net/wp-content/themes/3skneew-vid/assets/img/no/dt_poster.png",
@@ -23009,5 +23033,5 @@
       "url": "https://aa.3ick.net/watch/tvshows/serie-siyah-kalp-mudblij-21aug6/"
     }
   },
-  "last_update": "2026-09-04T10:10:12.597576"
+  "last_update": "2026-09-04T15:27:07.238854"
 }
