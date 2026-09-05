@@ -8363,6 +8363,30 @@
           "servers": [
             "https://aa.3ick.net/watch/episodes/serie-tasacak-bu-deniz-mudblij-season-1-episode-3/"
           ]
+        },
+        {
+          "episode": 4,
+          "url": "https://aa.3ick.net/watch/episodes/serie-tasacak-bu-deniz-mudblij-season-1-episode-4/",
+          "date_added": "2026-09-05T19:42:44.386493",
+          "servers": [
+            "https://aa.3ick.net/watch/episodes/serie-tasacak-bu-deniz-mudblij-season-1-episode-4/"
+          ]
+        },
+        {
+          "episode": 5,
+          "url": "https://aa.3ick.net/watch/episodes/serie-tasacak-bu-deniz-mudblij-season-1-episode-5/",
+          "date_added": "2026-09-05T19:42:44.386504",
+          "servers": [
+            "https://aa.3ick.net/watch/episodes/serie-tasacak-bu-deniz-mudblij-season-1-episode-5/"
+          ]
+        },
+        {
+          "episode": 6,
+          "url": "https://aa.3ick.net/watch/episodes/serie-tasacak-bu-deniz-mudblij-season-1-episode-6/",
+          "date_added": "2026-09-05T19:42:44.386505",
+          "servers": [
+            "https://aa.3ick.net/watch/episodes/serie-tasacak-bu-deniz-mudblij-season-1-episode-6/"
+          ]
         }
       ],
       "cover": "https://aa.3ick.net/wp-content/themes/3skneew-vid/assets/img/no/dt_poster.png",
@@ -23041,5 +23065,5 @@
       "url": "https://aa.3ick.net/watch/tvshows/serie-siyah-kalp-mudblij-21aug6/"
     }
   },
-  "last_update": "2026-09-05T14:13:56.199484"
+  "last_update": "2026-09-05T19:43:03.320856"
 }
