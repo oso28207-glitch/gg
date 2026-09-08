@@ -23121,6 +23121,14 @@
           "servers": [
             "https://aa.3ick.net/watch/episodes/serie-alaca-mudblij-season-1-episode-7/"
           ]
+        },
+        {
+          "episode": 8,
+          "url": "https://aa.3ick.net/watch/episodes/serie-alaca-mudblij-season-1-episode-8/",
+          "date_added": "2026-09-08T02:02:07.906246",
+          "servers": [
+            "https://aa.3ick.net/watch/episodes/serie-alaca-mudblij-season-1-episode-8/"
+          ]
         }
       ],
       "cover": "https://aa.3ick.net/wp-content/themes/3skneew-vid/assets/img/no/dt_poster.png",
@@ -23174,6 +23182,14 @@
           "date_added": "2026-09-07T20:55:29.435453",
           "servers": [
             "https://aa.3ick.net/watch/episodes/serie-ask-ve-mavi-mudblij-season-1-episode-6/"
+          ]
+        },
+        {
+          "episode": 7,
+          "url": "https://aa.3ick.net/watch/episodes/serie-ask-ve-mavi-mudblij-season-1-episode-7/",
+          "date_added": "2026-09-08T02:02:09.742723",
+          "servers": [
+            "https://aa.3ick.net/watch/episodes/serie-ask-ve-mavi-mudblij-season-1-episode-7/"
           ]
         }
       ],
@@ -35463,5 +35479,5 @@
       "url": "https://aa.3ick.net/watch/tvshows/serie-gozleri-karadeniz-mudblij-1oct5/"
     }
   },
-  "last_update": "2026-09-07T20:56:05.285059"
+  "last_update": "2026-09-08T02:02:45.526322"
 }
