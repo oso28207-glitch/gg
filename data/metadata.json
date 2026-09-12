@@ -23145,6 +23145,22 @@
           "servers": [
             "https://aa.3ick.net/watch/episodes/serie-alaca-mudblij-season-1-episode-10/"
           ]
+        },
+        {
+          "episode": 11,
+          "url": "https://aa.3ick.net/watch/episodes/serie-alaca-mudblij-season-1-episode-11/",
+          "date_added": "2026-09-12T02:07:23.986537",
+          "servers": [
+            "https://aa.3ick.net/watch/episodes/serie-alaca-mudblij-season-1-episode-11/"
+          ]
+        },
+        {
+          "episode": 12,
+          "url": "https://aa.3ick.net/watch/episodes/serie-alaca-mudblij-season-1-episode-12/",
+          "date_added": "2026-09-12T02:07:23.986547",
+          "servers": [
+            "https://aa.3ick.net/watch/episodes/serie-alaca-mudblij-season-1-episode-12/"
+          ]
         }
       ],
       "cover": "https://aa.3ick.net/wp-content/themes/3skneew-vid/assets/img/no/dt_poster.png",
@@ -23222,6 +23238,22 @@
           "date_added": "2026-09-09T20:12:29.980009",
           "servers": [
             "https://aa.3ick.net/watch/episodes/serie-ask-ve-mavi-mudblij-season-1-episode-9/"
+          ]
+        },
+        {
+          "episode": 10,
+          "url": "https://aa.3ick.net/watch/episodes/serie-ask-ve-mavi-mudblij-season-1-episode-10/",
+          "date_added": "2026-09-12T02:07:25.870026",
+          "servers": [
+            "https://aa.3ick.net/watch/episodes/serie-ask-ve-mavi-mudblij-season-1-episode-10/"
+          ]
+        },
+        {
+          "episode": 11,
+          "url": "https://aa.3ick.net/watch/episodes/serie-ask-ve-mavi-mudblij-season-1-episode-11/",
+          "date_added": "2026-09-12T02:07:25.870038",
+          "servers": [
+            "https://aa.3ick.net/watch/episodes/serie-ask-ve-mavi-mudblij-season-1-episode-11/"
           ]
         }
       ],
@@ -43983,5 +44015,5 @@
       "url": "https://aa.3ick.net/watch/tvshows/serie-kuzey-gunedy-mudblij-1oct5/"
     }
   },
-  "last_update": "2026-09-11T20:14:05.953939"
+  "last_update": "2026-09-12T02:07:39.749269"
 }
