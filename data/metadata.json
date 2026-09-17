@@ -50977,8 +50977,74 @@
       "url": "https://aa.3ick.net/watch/tvshows/serie-mustang-mudblij-1oct5/"
     },
     "مسلسل انا اعرفك مدبلج": {
-      "episodes": [],
-      "cover": "https://aa.3ick.net/wp-content/themes/3skneew-vid/assets/img/no/dt_poster.png"
+      "episodes": [
+        {
+          "episode": 1,
+          "url": "https://aa.3ick.net/watch/episodes/serie-seni-taniyorum-mudblj-season-1-episode-1/",
+          "date_added": "2026-09-17T15:52:53.552498",
+          "servers": [
+            "https://aa.3ick.net/watch/episodes/serie-seni-taniyorum-mudblj-season-1-episode-1/"
+          ]
+        },
+        {
+          "episode": 2,
+          "url": "https://aa.3ick.net/watch/episodes/serie-seni-taniyorum-mudblj-season-1-episode-2/",
+          "date_added": "2026-09-17T15:52:53.552509",
+          "servers": [
+            "https://aa.3ick.net/watch/episodes/serie-seni-taniyorum-mudblj-season-1-episode-2/"
+          ]
+        },
+        {
+          "episode": 3,
+          "url": "https://aa.3ick.net/watch/episodes/serie-seni-taniyorum-mudblj-season-1-episode-3/",
+          "date_added": "2026-09-17T15:52:53.552510",
+          "servers": [
+            "https://aa.3ick.net/watch/episodes/serie-seni-taniyorum-mudblj-season-1-episode-3/"
+          ]
+        },
+        {
+          "episode": 4,
+          "url": "https://aa.3ick.net/watch/episodes/serie-seni-taniyorum-mudblj-season-1-episode-4/",
+          "date_added": "2026-09-17T15:52:53.552512",
+          "servers": [
+            "https://aa.3ick.net/watch/episodes/serie-seni-taniyorum-mudblj-season-1-episode-4/"
+          ]
+        },
+        {
+          "episode": 5,
+          "url": "https://aa.3ick.net/watch/episodes/serie-seni-taniyorum-mudblj-season-1-episode-5/",
+          "date_added": "2026-09-17T15:52:53.552513",
+          "servers": [
+            "https://aa.3ick.net/watch/episodes/serie-seni-taniyorum-mudblj-season-1-episode-5/"
+          ]
+        },
+        {
+          "episode": 6,
+          "url": "https://aa.3ick.net/watch/episodes/serie-seni-taniyorum-mudblj-season-1-episode-6/",
+          "date_added": "2026-09-17T15:52:53.552514",
+          "servers": [
+            "https://aa.3ick.net/watch/episodes/serie-seni-taniyorum-mudblj-season-1-episode-6/"
+          ]
+        },
+        {
+          "episode": 7,
+          "url": "https://aa.3ick.net/watch/episodes/serie-seni-taniyorum-mudblj-season-1-episode-7/",
+          "date_added": "2026-09-17T15:52:53.552515",
+          "servers": [
+            "https://aa.3ick.net/watch/episodes/serie-seni-taniyorum-mudblj-season-1-episode-7/"
+          ]
+        },
+        {
+          "episode": 8,
+          "url": "https://aa.3ick.net/watch/episodes/serie-seni-taniyorum-mudblj-season-1-episode-8/",
+          "date_added": "2026-09-17T15:52:53.552516",
+          "servers": [
+            "https://aa.3ick.net/watch/episodes/serie-seni-taniyorum-mudblj-season-1-episode-8/"
+          ]
+        }
+      ],
+      "cover": "https://aa.3ick.net/wp-content/themes/3skneew-vid/assets/img/no/dt_poster.png",
+      "url": "https://aa.3ick.net/watch/tvshows/serie-seni-taniyorum-mudblj/"
     },
     "مسلسل اثير الحب مدبلج": {
       "episodes": [
@@ -54869,5 +54935,5 @@
       "cover": "https://aa.3ick.net/wp-content/themes/3skneew-vid/assets/img/no/dt_poster.png"
     }
   },
-  "last_update": "2026-09-17T10:42:15.168484"
+  "last_update": "2026-09-17T15:53:36.496952"
 }
