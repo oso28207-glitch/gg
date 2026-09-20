@@ -55015,6 +55015,70 @@
           "servers": [
             "https://aa.3ick.net/watch/episodes/serie-cirkin-mudblij-season-1-episode-10/"
           ]
+        },
+        {
+          "episode": 11,
+          "url": "https://aa.3ick.net/watch/episodes/serie-cirkin-mudblij-season-1-episode-11/",
+          "date_added": "2026-09-20T15:05:28.994392",
+          "servers": [
+            "https://aa.3ick.net/watch/episodes/serie-cirkin-mudblij-season-1-episode-11/"
+          ]
+        },
+        {
+          "episode": 12,
+          "url": "https://aa.3ick.net/watch/episodes/serie-cirkin-mudblij-season-1-episode-12/",
+          "date_added": "2026-09-20T15:05:28.994402",
+          "servers": [
+            "https://aa.3ick.net/watch/episodes/serie-cirkin-mudblij-season-1-episode-12/"
+          ]
+        },
+        {
+          "episode": 13,
+          "url": "https://aa.3ick.net/watch/episodes/serie-cirkin-mudblij-season-1-episode-13/",
+          "date_added": "2026-09-20T15:05:28.994403",
+          "servers": [
+            "https://aa.3ick.net/watch/episodes/serie-cirkin-mudblij-season-1-episode-13/"
+          ]
+        },
+        {
+          "episode": 14,
+          "url": "https://aa.3ick.net/watch/episodes/serie-cirkin-mudblij-season-1-episode-14/",
+          "date_added": "2026-09-20T15:05:28.994404",
+          "servers": [
+            "https://aa.3ick.net/watch/episodes/serie-cirkin-mudblij-season-1-episode-14/"
+          ]
+        },
+        {
+          "episode": 15,
+          "url": "https://aa.3ick.net/watch/episodes/serie-cirkin-mudblij-season-1-episode-15/",
+          "date_added": "2026-09-20T15:05:28.994406",
+          "servers": [
+            "https://aa.3ick.net/watch/episodes/serie-cirkin-mudblij-season-1-episode-15/"
+          ]
+        },
+        {
+          "episode": 16,
+          "url": "https://aa.3ick.net/watch/episodes/serie-cirkin-mudblij-season-1-episode-16/",
+          "date_added": "2026-09-20T15:05:28.994407",
+          "servers": [
+            "https://aa.3ick.net/watch/episodes/serie-cirkin-mudblij-season-1-episode-16/"
+          ]
+        },
+        {
+          "episode": 17,
+          "url": "https://aa.3ick.net/watch/episodes/serie-cirkin-mudblij-season-1-episode-17/",
+          "date_added": "2026-09-20T15:05:28.994408",
+          "servers": [
+            "https://aa.3ick.net/watch/episodes/serie-cirkin-mudblij-season-1-episode-17/"
+          ]
+        },
+        {
+          "episode": 18,
+          "url": "https://aa.3ick.net/watch/episodes/serie-cirkin-mudblij-season-1-episode-18/",
+          "date_added": "2026-09-20T15:05:28.994409",
+          "servers": [
+            "https://aa.3ick.net/watch/episodes/serie-cirkin-mudblij-season-1-episode-18/"
+          ]
         }
       ],
       "cover": "https://aa.3ick.net/wp-content/themes/3skneew-vid/assets/img/no/dt_poster.png",
@@ -55427,5 +55491,5 @@
       "url": "https://aa.3ick.net/watch/tvshows/serie-tatar-ramazan-mudblij-19sep6/"
     }
   },
-  "last_update": "2026-09-20T10:18:00.618947"
+  "last_update": "2026-09-20T15:06:05.295741"
 }
