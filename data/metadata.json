@@ -62305,6 +62305,22 @@
           "servers": [
             "https://aa.3ick.net/watch/episodes/serie-uzak-sehir-mudblj-season-1-episode-330/"
           ]
+        },
+        {
+          "episode": 331,
+          "url": "https://aa.3ick.net/watch/episodes/serie-uzak-sehir-mudblj-season-1-episode-331/",
+          "date_added": "2026-10-07T22:26:17.701083",
+          "servers": [
+            "https://aa.3ick.net/watch/episodes/serie-uzak-sehir-mudblj-season-1-episode-331/"
+          ]
+        },
+        {
+          "episode": 332,
+          "url": "https://aa.3ick.net/watch/episodes/serie-uzak-sehir-mudblj-season-1-episode-332/",
+          "date_added": "2026-10-07T22:26:17.701094",
+          "servers": [
+            "https://aa.3ick.net/watch/episodes/serie-uzak-sehir-mudblj-season-1-episode-332/"
+          ]
         }
       ],
       "cover": "https://aa.3ick.net/wp-content/themes/3skneew-vid/assets/img/no/dt_poster.png",
@@ -65079,5 +65095,5 @@
       "url": "https://aa.3ick.net/watch/tvshows/serie-behind-the-veil/"
     }
   },
-  "last_update": "2026-10-07T12:18:55.302666"
+  "last_update": "2026-10-07T22:26:35.681248"
 }
