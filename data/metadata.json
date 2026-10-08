@@ -65121,11 +65121,19 @@
           "servers": [
             "https://aa.3ick.net/watch/episodes/serie-behind-the-veil-mudblij-season-1-episode-27/"
           ]
+        },
+        {
+          "episode": 28,
+          "url": "https://aa.3ick.net/watch/episodes/serie-behind-the-veil-mudblij-season-1-episode-28/",
+          "date_added": "2026-10-08T12:27:48.902135",
+          "servers": [
+            "https://aa.3ick.net/watch/episodes/serie-behind-the-veil-mudblij-season-1-episode-28/"
+          ]
         }
       ],
       "cover": "https://aa.3ick.net/wp-content/themes/3skneew-vid/assets/img/no/dt_poster.png",
       "url": "https://aa.3ick.net/watch/tvshows/serie-behind-the-veil/"
     }
   },
-  "last_update": "2026-10-08T03:33:32.263139"
+  "last_update": "2026-10-08T12:28:25.168636"
 }
