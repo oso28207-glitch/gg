@@ -62321,6 +62321,30 @@
           "servers": [
             "https://aa.3ick.net/watch/episodes/serie-uzak-sehir-mudblj-season-1-episode-332/"
           ]
+        },
+        {
+          "episode": 333,
+          "url": "https://aa.3ick.net/watch/episodes/serie-uzak-sehir-mudblj-season-1-episode-333/",
+          "date_added": "2026-10-08T03:33:14.958026",
+          "servers": [
+            "https://aa.3ick.net/watch/episodes/serie-uzak-sehir-mudblj-season-1-episode-333/"
+          ]
+        },
+        {
+          "episode": 334,
+          "url": "https://aa.3ick.net/watch/episodes/serie-uzak-sehir-mudblj-season-1-episode-334/",
+          "date_added": "2026-10-08T03:33:14.958037",
+          "servers": [
+            "https://aa.3ick.net/watch/episodes/serie-uzak-sehir-mudblj-season-1-episode-334/"
+          ]
+        },
+        {
+          "episode": 335,
+          "url": "https://aa.3ick.net/watch/episodes/serie-uzak-sehir-mudblj-season-1-episode-335/",
+          "date_added": "2026-10-08T03:33:14.958039",
+          "servers": [
+            "https://aa.3ick.net/watch/episodes/serie-uzak-sehir-mudblj-season-1-episode-335/"
+          ]
         }
       ],
       "cover": "https://aa.3ick.net/wp-content/themes/3skneew-vid/assets/img/no/dt_poster.png",
@@ -65089,11 +65113,19 @@
           "servers": [
             "https://aa.3ick.net/watch/episodes/serie-behind-the-veil-mudblij-season-1-episode-26/"
           ]
+        },
+        {
+          "episode": 27,
+          "url": "https://aa.3ick.net/watch/episodes/serie-behind-the-veil-mudblij-season-1-episode-27/",
+          "date_added": "2026-10-08T03:32:54.919140",
+          "servers": [
+            "https://aa.3ick.net/watch/episodes/serie-behind-the-veil-mudblij-season-1-episode-27/"
+          ]
         }
       ],
       "cover": "https://aa.3ick.net/wp-content/themes/3skneew-vid/assets/img/no/dt_poster.png",
       "url": "https://aa.3ick.net/watch/tvshows/serie-behind-the-veil/"
     }
   },
-  "last_update": "2026-10-07T22:26:35.681248"
+  "last_update": "2026-10-08T03:33:32.263139"
 }
