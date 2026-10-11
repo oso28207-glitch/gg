@@ -34179,6 +34179,14 @@
           "servers": [
             "https://aa.3ick.net/watch/episodes/serie-esaretim-sensin-mudblj-season-1-episode-38/"
           ]
+        },
+        {
+          "episode": 39,
+          "url": "https://aa.3ick.net/watch/episodes/serie-esaretim-sensin-mudblj-season-1-episode-39/",
+          "date_added": "2026-10-11T21:13:22.418260",
+          "servers": [
+            "https://aa.3ick.net/watch/episodes/serie-esaretim-sensin-mudblj-season-1-episode-39/"
+          ]
         }
       ],
       "cover": "https://aa.3ick.net/wp-content/themes/3skneew-vid/assets/img/no/dt_poster.png",
@@ -65821,5 +65829,5 @@
       "url": "https://aa.3ick.net/watch/tvshows/serie-iyi-gunde-kotu-gunde-mudblij-2oct5/"
     }
   },
-  "last_update": "2026-10-11T17:00:48.977086"
+  "last_update": "2026-10-11T21:13:59.912679"
 }
