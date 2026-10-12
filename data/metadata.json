@@ -65445,6 +65445,14 @@
           "servers": [
             "https://aa.3ick.net/watch/episodes/serie-aynadaki-yabanci-mudblij-season-1-episode-26/"
           ]
+        },
+        {
+          "episode": 27,
+          "url": "https://aa.3ick.net/watch/episodes/serie-aynadaki-yabanci-mudblij-season-1-episode-27/",
+          "date_added": "2026-10-12T03:15:54.592695",
+          "servers": [
+            "https://aa.3ick.net/watch/episodes/serie-aynadaki-yabanci-mudblij-season-1-episode-27/"
+          ]
         }
       ],
       "cover": "https://aa.3ick.net/wp-content/themes/3skneew-vid/assets/img/no/dt_poster.png",
@@ -65829,5 +65837,5 @@
       "url": "https://aa.3ick.net/watch/tvshows/serie-iyi-gunde-kotu-gunde-mudblij-2oct5/"
     }
   },
-  "last_update": "2026-10-11T21:13:59.912679"
+  "last_update": "2026-10-12T03:16:36.801708"
 }
